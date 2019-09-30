@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+import sys
 import argparse
 import scipy.io.arff
 import torch
@@ -49,6 +50,19 @@ def load_arff(arff_fname):
     Y = [L[y] for y in Y]
     return X, Y, L
 
+def d_Theta(W_i, W_j):
+    return [(torch.dot(w_i, w_j), torch.norm(w_i) * torch.norm(w_j), d_theta(w_i, w_j)) for (w_i, w_j) in zip(W_i, W_j)]
+
+def d_theta(w_i, w_j):
+    norm_w_ij = torch.norm(w_i) * torch.norm(w_j)
+    if norm_w_ij.item() == 0.0:
+        # Any zero-length vector can be considered to be simultaneously colinear and not with any other.
+        # Erring on the side of colinearity and avoiding div by zero.
+        return torch.tensor(0.0)
+    else:
+        # Clamping per https://github.com/pytorch/pytorch/issues/8069
+        return torch.acos(torch.clamp(torch.dot(w_i, w_j) / norm_w_ij, min=-1.0, max=1.0))
+
 """
 Train NN.
 """
@@ -57,23 +71,17 @@ def train_nn(model, X, Y):
     for epoch in range(args.epochs):
         passed = 0
         failed = 0
+        LW_i = [ layer.weight.data for layer in
+                 [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
         for x, y in zip(X,Y):
             y_pred = model(x)
 
             loss = loss_fn(y_pred, y)
             y_label = one_hots[y_pred.argmax().item()]
-            print("--- TRAIN {}  ---".format(epoch))
-            #print("x = {}".format(x))
-            #print("yp = {}".format(y_pred))
-            #print("yl = {}".format(y_pred))
-            #print("ya = {}".format(y))
-            print("loss = {}".format(loss.item()))
             if torch.eq(y, y_label).all() :
                 passed = passed + 1
-                print("PASS")
             else:
                 failed = failed + 1
-                print("FAIL")
 
             loss.backward()
 
@@ -81,7 +89,11 @@ def train_nn(model, X, Y):
                 for p in model.parameters():
                     p -= args.learning_rate * p.grad
                 model.zero_grad()
-        print("passed = {}, failed = {}".format(passed, failed))
+        LW_j = [ layer.weight.data for layer in
+                 [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
+        dTheta = [d_Theta(W_i, W_j) for (W_i, W_j) in zip(LW_i, LW_j)]
+        # @TODO: may want to add norm of difference vector for clarity, esp. with 0-length vectors.
+        print("TRAIN/{}: passed = {}, failed = {}, dθ = {}".format(epoch, passed, failed, dTheta))
 
 """
 Test NN.
@@ -92,19 +104,11 @@ def test_nn(model, X, Y):
         y_pred = model(x)
         loss = loss_fn(y_pred, y)
         y_label = one_hots[y_pred.argmax.item()]
-        print("--- TEST ---")
-        #print("x = {}".format(x))
-        #print("yp = {}".format(y_pred))
-        #print("yl = {}".format(y_label))
-        #print("ya = {}".format(y))
-        print("loss = {}".format(loss.item()))
         if torch.eq(y, y_label).all() :
             passed = passed + 1
-            print("PASS")
         else:
             failed = failed + 1
-            print("FAIL")
-    print("passed = {}, failed = {}".format(passed, failed))
+    print("TEST/{}: passed = {}, failed = {}".format(epoch, passed, failed))
 
 
 
@@ -139,7 +143,7 @@ for i in range(len(layer_D)-1):
 
 # Create NN model.
 model = torch.nn.Sequential(layers)
-print(stderr, model)
+print(model, file=sys.stderr)
 
 # Train or test, depending on user spec.
 # @TODO: Save trained model for future loading. Otherwise, have to train before testing.
