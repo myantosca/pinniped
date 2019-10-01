@@ -71,7 +71,7 @@ def train_nn(model, X, Y):
     for epoch in range(args.epochs):
         passed = 0
         failed = 0
-        LW_i = [ layer.weight.data for layer in
+        LW_i = [ layer.weight.data.clone().detach().requires_grad_(True) for layer in
                  [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
         for x, y in zip(X,Y):
             y_pred = model(x)
@@ -89,7 +89,7 @@ def train_nn(model, X, Y):
                 for p in model.parameters():
                     p -= args.learning_rate * p.grad
                 model.zero_grad()
-        LW_j = [ layer.weight.data for layer in
+        LW_j = [ layer.weight.data.clone().detach().requires_grad_(True) for layer in
                  [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
         dTheta = [d_Theta(W_i, W_j) for (W_i, W_j) in zip(LW_i, LW_j)]
         # @TODO: may want to add norm of difference vector for clarity, esp. with 0-length vectors.
