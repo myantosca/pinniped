@@ -104,16 +104,17 @@ def test_nn(model, X, Y):
     D_out = model[-1].out_features
     one_hots = torch.nn.functional.one_hot(torch.arange(0, D_out)).type(torch.float)
     confusion_matrix = torch.zeros(D_out, D_out)
+    passed = 0
+    failed = 0
     for x,y in zip(X,Y):
         y_pred = model(x)
-        loss = loss_fn(y_pred, y)
-        y_label = one_hots[y_pred.argmax.item()]
+        y_label = one_hots[y_pred.argmax().item()]
         if torch.eq(y, y_label).all() :
             passed = passed + 1
         else:
             failed = failed + 1
     confusion_matrix[y.argmax()][y_pred.argmax()] += 1
-    print("TEST/{}: passed = {}, failed = {}, confusion = {}".format(epoch, passed, failed, confusion_matrix))
+    print("TEST: passed = {}, failed = {}, confusion = {}".format(passed, failed, confusion_matrix))
 
 
 
