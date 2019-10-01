@@ -67,7 +67,9 @@ def d_theta(w_i, w_j):
 Train NN.
 """
 def train_nn(model, X, Y):
-    one_hots = torch.nn.functional.one_hot(torch.arange(0,model[-1].out_features)).type(torch.float)
+    D_out = model[-1].out_features
+    one_hots = torch.nn.functional.one_hot(torch.arange(0,D_out)).type(torch.float)
+    confusion_matrix = torch.zeros(D_out, D_out)
     for epoch in range(args.epochs):
         passed = 0
         failed = 0
@@ -82,7 +84,7 @@ def train_nn(model, X, Y):
                 passed = passed + 1
             else:
                 failed = failed + 1
-
+            confusion_matrix[y.argmax().item()][y_pred.argmax().item()] += 1
             loss.backward()
 
             with torch.no_grad():
@@ -93,13 +95,16 @@ def train_nn(model, X, Y):
                  [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
         dTheta = [d_Theta(W_i, W_j) for (W_i, W_j) in zip(LW_i, LW_j)]
         # @TODO: may want to add norm of difference vector for clarity, esp. with 0-length vectors.
-        print("TRAIN/{}: passed = {}, failed = {}, d(w,θ) = {}".format(epoch, passed, failed, dTheta))
+        print("TRAIN/{}: passed = {}, failed = {}, d(w,θ) = {}, confusion = {}".format(epoch, passed, failed, dTheta, confusion_matrix))
+        confusion_matrix.fill_(0)
 
 """
 Test NN.
 """
 def test_nn(model, X, Y):
-    one_hots = torch.nn.functional.one_hot(torch.arange(0,model[-1].out_features)).type(torch.float)
+    D_out = model[-1].out_features
+    one_hots = torch.nn.functional.one_hot(torch.arange(0, D_out)).type(torch.float)
+    confusion_matrix = torch.zeros(D_out, D_out)
     for x,y in zip(X,Y):
         y_pred = model(x)
         loss = loss_fn(y_pred, y)
@@ -108,7 +113,8 @@ def test_nn(model, X, Y):
             passed = passed + 1
         else:
             failed = failed + 1
-    print("TEST/{}: passed = {}, failed = {}".format(epoch, passed, failed))
+    confusion_matrix[y.argmax()][y_pred.argmax()] += 1
+    print("TEST/{}: passed = {}, failed = {}, confusion = {}".format(epoch, passed, failed, confusion_matrix))
 
 
 
