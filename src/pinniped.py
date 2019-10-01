@@ -6,6 +6,7 @@ import scipy.io.arff
 import torch
 import math
 from collections import OrderedDict
+import pickle
 
 """
 Command line arguments
@@ -147,13 +148,17 @@ for i in range(len(layer_D)-1):
     if i < len(layer_D) - 2:
         layers['A{}'.format(i)] = activation_unit()
 
-# Create NN model.
 model = torch.nn.Sequential(layers)
+# Create NN model.
 print(model, file=sys.stderr)
 
 # Train or test, depending on user spec.
 # @TODO: Save trained model for future loading. Otherwise, have to train before testing.
 if args.train:
     train_nn(model, X, Y)
+    with open('./model.nn', 'wb') as fout:
+        pickle.dump(model.state_dict(), fout)
 elif args.test:
+    with open('./model.nn', 'rb') as fin:
+        model.load_state_dict(pickle.load(fin))
     test_nn(model, X, Y)
