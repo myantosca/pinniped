@@ -94,7 +94,6 @@ def train_nn(model, X, Y):
         LW_j = [ layer.weight.data.clone().detach().requires_grad_(True) for layer in
                  [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
         dTheta = [d_Theta(W_i, W_j) for (W_i, W_j) in zip(LW_i, LW_j)]
-        # @TODO: may want to add norm of difference vector for clarity, esp. with 0-length vectors.
         print("TRAIN/{}: passed = {}, failed = {}, d(w,θ) = {}, confusion = {}".format(epoch, passed, failed, dTheta, confusion_matrix))
         confusion_matrix.fill_(0)
 
