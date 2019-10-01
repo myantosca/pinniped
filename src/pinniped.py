@@ -51,17 +51,17 @@ def load_arff(arff_fname):
     return X, Y, L
 
 def d_Theta(W_i, W_j):
-    return [(torch.dot(w_i, w_j), torch.norm(w_i) * torch.norm(w_j), d_theta(w_i, w_j)) for (w_i, w_j) in zip(W_i, W_j)]
+    return [(torch.norm(w_j.sub(w_i)).item(), d_theta(w_i, w_j)) for (w_i, w_j) in zip(W_i, W_j)]
 
 def d_theta(w_i, w_j):
     norm_w_ij = torch.norm(w_i) * torch.norm(w_j)
     if norm_w_ij.item() == 0.0:
         # Any zero-length vector can be considered to be simultaneously colinear and not with any other.
         # Erring on the side of colinearity and avoiding div by zero.
-        return torch.tensor(0.0)
+        return 0.0
     else:
         # Clamping per https://github.com/pytorch/pytorch/issues/8069
-        return torch.acos(torch.clamp(torch.dot(w_i, w_j) / norm_w_ij, min=-1.0, max=1.0))
+        return torch.acos(torch.clamp(torch.dot(w_i, w_j) / norm_w_ij, min=-1.0, max=1.0)).item()
 
 """
 Train NN.
@@ -93,7 +93,7 @@ def train_nn(model, X, Y):
                  [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
         dTheta = [d_Theta(W_i, W_j) for (W_i, W_j) in zip(LW_i, LW_j)]
         # @TODO: may want to add norm of difference vector for clarity, esp. with 0-length vectors.
-        print("TRAIN/{}: passed = {}, failed = {}, dθ = {}".format(epoch, passed, failed, dTheta))
+        print("TRAIN/{}: passed = {}, failed = {}, d(w,θ) = {}".format(epoch, passed, failed, dTheta))
 
 """
 Test NN.
