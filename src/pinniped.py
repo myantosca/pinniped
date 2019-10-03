@@ -17,11 +17,12 @@ mode = parser.add_mutually_exclusive_group()
 mode.add_argument('--test', action='store_true')
 mode.add_argument('--train', action='store_true')
 parser.add_argument('--epochs', type=int, default=1)
-parser.add_argument('--batch-size', type=int)
+parser.add_argument('--batch-size', type=int, default=1)
 parser.add_argument('--learning-rate', type=float, default=0.5)
 parser.add_argument('--momentum', type=float) # @TODO: Implement me!
 parser.add_argument('--activation-unit', type=str.lower, choices=['sigmoid', 'tanh', 'relu'], default='sigmoid')
 parser.add_argument('--layer-dims', type=str, required=True)
+parser.add_argument('--validation-reserve', type=float, default=0.25)
 
 activation_units = { 'sigmoid' : torch.nn.Sigmoid, 'tanh' : torch.nn.Tanh, 'relu' : torch.nn.ReLU }
 
@@ -43,12 +44,12 @@ def load_arff(arff_fname):
     X, Y = zip(*[ (XY[0:-1], XY[-1].decode('UTF-8')) for XY in [ tuple(nd) for nd in arff_data ] ])
     L = OrderedDict()
     classes = len(arff_meta['target'][1])
+    one_hots = torch.nn.functional.one_hot(torch.arange(0,classes)).type(torch.double)
     for c in range(classes):
         y = arff_meta['target'][1][c]
-        L[y] = torch.zeros(classes)
-        L[y][c] = 1.0
-    X = [torch.tensor(compress(x)) for x in X]
-    Y = [L[y] for y in Y]
+        L[y] = one_hots[c]
+    X = torch.stack([torch.tensor(compress(x)).type(torch.double) for x in X ])
+    Y = torch.stack([ L[y] for y in Y ])
     return X, Y, L
 
 def d_Theta(W_i, W_j):
@@ -68,54 +69,84 @@ def d_theta(w_i, w_j):
 Train NN.
 """
 def train_nn(model, X, Y):
-    D_out = model[-1].out_features
-    one_hots = torch.nn.functional.one_hot(torch.arange(0,D_out)).type(torch.float)
-    confusion_matrix = torch.zeros(D_out, D_out)
+    classes = model[-1].out_features
+    sample_count = X.size()[0]
+    confusion_matrix = torch.zeros(classes, classes)
+    reserved = math.ceil(sample_count * args.validation_reserve)
+    one_hots = torch.nn.functional.one_hot(torch.arange(0,classes)).type(torch.double)
+
     for epoch in range(args.epochs):
         passed = 0
         failed = 0
         LW_i = [ layer.weight.data.clone().detach().requires_grad_(True) for layer in
                  [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
-        for x, y in zip(X,Y):
-            y_pred = model(x)
+        # Permute the order of the data for stochastic batch descent.
+        sample_indices = torch.randperm(sample_count)
+        training_indices = sample_indices[0:-reserved]
+        reserved_indices = sample_indices[-reserved:]
+        reserved_X = X.index_select(0, reserved_indices)
+        reserved_Y = Y.index_select(0, reserved_indices)
 
-            loss = loss_fn(y_pred, y)
-            y_label = one_hots[y_pred.argmax().item()]
-            if torch.eq(y, y_label).all() :
-                passed = passed + 1
-            else:
-                failed = failed + 1
-            confusion_matrix[y.argmax().item()][y_pred.argmax().item()] += 1
+        batch = 0
+        while len(training_indices) > 0:
+            batch_indices = training_indices[0:args.batch_size]
+            training_indices = training_indices[args.batch_size:]
+            batch_X = X.index_select(0, batch_indices)
+            batch_Y = Y.index_select(0, batch_indices)
+            trained_Y = model(batch_X)
+            trained_labels = torch.stack([one_hots[y.argmax().item()] for y in trained_Y ])
+            trained_hits = batch_Y.eq(trained_labels).all(1).to(torch.int).sum()
+            trained_misses = len(batch_Y) - trained_hits
+            loss = loss_fn(trained_Y, batch_Y)
             loss.backward()
 
             with torch.no_grad():
                 for p in model.parameters():
                     p -= args.learning_rate * p.grad
                 model.zero_grad()
+                validated_Y = model(reserved_X)
+                validated_labels = torch.stack([one_hots[y.argmax().item()] for y in validated_Y])
+                validated_hits = reserved_Y.eq(validated_labels).all(1).to(torch.int).sum()
+                validated_misses = len(reserved_Y) - validated_hits
+
+            print("TRAIN[{},{}]: {}/{}".format(epoch, batch, trained_hits, len(batch_indices)))
+            for i in range(len(batch_indices)):
+                confusion_matrix[batch_Y[i].argmax().item()][trained_Y[i].argmax().item()] +=1
+            print(confusion_matrix)
+            confusion_matrix.fill_(0)
+
+            print("VALID[{},{}]: {}/{}".format(epoch, batch, validated_hits, len(reserved_indices)))
+            for i in range(len(reserved_indices)):
+                confusion_matrix[reserved_Y[i].argmax().item()][reserved_Y[i].argmax().item()] +=1
+            print(confusion_matrix)
+            confusion_matrix.fill_(0)
+
+            batch += 1
+
         LW_j = [ layer.weight.data.clone().detach().requires_grad_(True) for layer in
                  [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
         dTheta = [d_Theta(W_i, W_j) for (W_i, W_j) in zip(LW_i, LW_j)]
-        print("TRAIN/{}: passed = {}, failed = {}, d(w,θ) = {}, confusion = {}".format(epoch, passed, failed, dTheta, confusion_matrix))
-        confusion_matrix.fill_(0)
+        print("d(w,θ) = {}".format(dTheta))
+
 
 """
 Test NN.
 """
 def test_nn(model, X, Y):
-    D_out = model[-1].out_features
-    one_hots = torch.nn.functional.one_hot(torch.arange(0, D_out)).type(torch.float)
-    confusion_matrix = torch.zeros(D_out, D_out)
+    classes = model[-1].out_features
+    confusion_matrix = torch.zeros(classes, classes)
+    one_hots = torch.nn.functional.one_hot(torch.arange(0,classes)).type(torch.double)
     passed = 0
     failed = 0
-    for x,y in zip(X,Y):
-        y_pred = model(x)
-        y_label = one_hots[y_pred.argmax().item()]
-        if torch.eq(y, y_label).all() :
-            passed = passed + 1
-        else:
-            failed = failed + 1
-    confusion_matrix[y.argmax()][y_pred.argmax()] += 1
-    print("TEST: passed = {}, failed = {}, confusion = {}".format(passed, failed, confusion_matrix))
+    with torch.no_grad():
+        predicted_Y = model(X)
+        predicted_labels = torch.stack([one_hots[y.argmax().item()] for y in predicted_Y])
+        predicted_hits = Y.eq(predicted_labels).all(1).to(torch.int).sum()
+        for i in range(Y.size()[0]):
+            confusion_matrix[Y[i].argmax().item()][predicted_Y[i].argmax().item()] +=1
+
+    print("TEST: {}/{}".format(predicted_hits, Y.size()[0]))
+    print(confusion_matrix)
 
 
 
@@ -144,9 +175,9 @@ X, Y, L = load_arff(args.arff)
 # Build set of layers in order.
 layers = OrderedDict()
 for i in range(len(layer_D)-1):
-    layers['L{}'.format(i)] = torch.nn.Linear(layer_D[i], layer_D[i+1])
+    layers['L{}'.format(i)] = torch.nn.Linear(layer_D[i], layer_D[i+1]).to(torch.double)
     if i < len(layer_D) - 2:
-        layers['A{}'.format(i)] = activation_unit()
+        layers['A{}'.format(i)] = activation_unit().to(torch.double)
 
 model = torch.nn.Sequential(layers)
 # Create NN model.
