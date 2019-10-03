@@ -20,10 +20,10 @@ parser.add_argument('--epochs', type=int, default=1)
 parser.add_argument('--batch-size', type=int)
 parser.add_argument('--learning-rate', type=float, default=0.5)
 parser.add_argument('--momentum', type=float) # @TODO: Implement me!
-parser.add_argument('--activation-unit', type=str, choices=['sigmoid', 'tanh', 'ReLU'], default='sigmoid')
+parser.add_argument('--activation-unit', type=str.lower, choices=['sigmoid', 'tanh', 'relu'], default='sigmoid')
 parser.add_argument('--layer-dims', type=str, required=True)
 
-activation_units = { 'sigmoid' : torch.nn.Sigmoid, 'tanh' : torch.nn.Tanh, 'ReLU' : torch.nn.ReLU }
+activation_units = { 'sigmoid' : torch.nn.Sigmoid, 'tanh' : torch.nn.Tanh, 'relu' : torch.nn.ReLU }
 
 """
 Encode a series of amplitudes in the range [0,1] according to the series dynamic range.
