@@ -22,8 +22,9 @@ parser.add_argument('--learning-rate', type=float, default=0.5)
 parser.add_argument('--momentum', type=float) # @TODO: Implement me!
 parser.add_argument('--activation-unit', type=str.lower, choices=['sigmoid', 'tanh', 'relu'], default='sigmoid')
 parser.add_argument('--layer-dims', type=str, required=True)
-parser.add_argument('--validation-reserve', type=float, default=0.25)
-
+reserved = parser.add_mutually_exclusive_group()
+reserved.add_argument('--reserve-frac', type=float, default=None)
+reserved.add_argument('--reserve-every', type=int, default=None)
 activation_units = { 'sigmoid' : torch.nn.Sigmoid, 'tanh' : torch.nn.Tanh, 'relu' : torch.nn.ReLU }
 
 """
@@ -71,9 +72,18 @@ Train NN.
 def train_nn(model, X, Y):
     classes = model[-1].out_features
     sample_count = X.size()[0]
-    confusion_matrix = torch.zeros(classes, classes)
-    reserved = math.ceil(sample_count * args.validation_reserve)
+    confusion_matrix = torch.zeros(classes, classes).type(torch.int)
     one_hots = torch.nn.functional.one_hot(torch.arange(0,classes)).type(torch.double)
+    sample_indices = torch.arange(0,sample_count)
+    if args.reserve_frac is not None:
+        # Reserve the last fraction
+        reserved = math.ceil(sample_count * args.reserve_frac)
+        training_indices = sample_indices[0:-reserved]
+        reserved_indices = sample_indices[-reserved:]
+    elif args.reserve_every is not None:
+        # Reserve at regular intervals
+        training_indices = torch.stack([i for i in sample_indices if i % args.reserve_every != 0])
+        reserved_indices = sample_indices[0::args.reserve_every]
 
     for epoch in range(args.epochs):
         passed = 0
@@ -81,25 +91,29 @@ def train_nn(model, X, Y):
         LW_i = [ layer.weight.data.clone().detach().requires_grad_(True) for layer in
                  [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
         # Permute the order of the data for stochastic batch descent.
-        sample_indices = torch.randperm(sample_count)
-        training_indices = sample_indices[0:-reserved]
-        reserved_indices = sample_indices[-reserved:]
         reserved_X = X.index_select(0, reserved_indices)
         reserved_Y = Y.index_select(0, reserved_indices)
 
         batch = 0
-        while len(training_indices) > 0:
-            batch_indices = training_indices[0:args.batch_size]
-            training_indices = training_indices[args.batch_size:]
+        offset = 0
+        while offset < len(training_indices):
+            batch_indices = training_indices[offset:offset+args.batch_size]
+            offset += args.batch_size
             batch_X = X.index_select(0, batch_indices)
             batch_Y = Y.index_select(0, batch_indices)
+
+            # Train the model on the input X
             trained_Y = model(batch_X)
+            # Make label predictions from argmax of the output.
             trained_labels = torch.stack([one_hots[y.argmax().item()] for y in trained_Y ])
             trained_hits = batch_Y.eq(trained_labels).all(1).to(torch.int).sum()
             trained_misses = len(batch_Y) - trained_hits
+
+            # Calculate losses for back-propagation.
             loss = loss_fn(trained_Y, batch_Y)
             loss.backward()
 
+            # Turn off autograd so as to not pollute the gradients with validation set nor the backpropagation itself.
             with torch.no_grad():
                 for p in model.parameters():
                     p -= args.learning_rate * p.grad
