@@ -34,7 +34,7 @@ Encode a series of amplitudes in the range [0,1] according to the series dynamic
 def compress(x):
     dmax = max(x)
     dmin = min(x)
-    return tuple([(d - dmin)/(dmax - dmin) for d in x])
+    return torch.tensor([(d - dmin)/(dmax - dmin) for d in x]).type(torch.double)
 
 """
 Load training data from ARFF input file.
@@ -50,7 +50,7 @@ def load_arff(arff_fname):
     for c in range(classes):
         y = arff_meta['target'][1][c]
         L[y] = one_hots[c]
-    X = torch.stack([torch.tensor(compress(x)).type(torch.double) for x in X ])
+    X = torch.stack([compress(x) for x in X ])
     Y = torch.stack([ L[y] for y in Y ])
     return X, Y, L
 
