@@ -76,7 +76,7 @@ def train_nn(model, X, Y):
     confusion_matrix = torch.zeros(classes, classes).type(torch.int)
     one_hots = torch.nn.functional.one_hot(torch.arange(0,classes)).type(torch.double)
     sample_indices = torch.arange(0,sample_count)
-    grad_bias = [p.data.new_zeros(p.size()) for p in model.parameters()]
+    grad_bias = [p.data.new_zeros(p.size()).requires_grad_(False).type(torch.double) for p in model.parameters()]
 
     for layer in [layer for layer in model.children() if type (layer) if type(layer) is torch.nn.Linear]:
         layer.weight.data.copy_(torch.randn_like(layer.weight.data))
@@ -102,7 +102,7 @@ def train_nn(model, X, Y):
             training_indices = torch.stack([training_indices[i] for i in torch.randperm(len(training_indices))])
         passed = 0
         failed = 0
-        LW_i = [ layer.weight.data.clone().detach().requires_grad_(True) for layer in
+        LW_i = [ layer.weight.data.clone().detach().requires_grad_(False) for layer in
                  [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
         # Permute the order of the data for stochastic batch descent.
         reserved_X = X.index_select(0, reserved_indices)
@@ -154,7 +154,8 @@ def train_nn(model, X, Y):
 
             batch += 1
 
-        LW_j = [ layer.weight.data.clone().detach().requires_grad_(True) for layer in
+        # Calculate weight changes over the epoch.
+        LW_j = [ layer.weight.data.clone().detach().requires_grad_(False) for layer in
                  [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
         dTheta = [d_Theta(W_i, W_j) for (W_i, W_j) in zip(LW_i, LW_j)]
         #print("d(w,θ) = {}".format(dTheta))
