@@ -124,6 +124,7 @@ def train_nn(model, X, Y):
 
         batch = 0
         offset = 0
+        trained_hits = 0
         while offset < len(training_indices):
             # Zero out gradients.
             if args.autograd_backprop:
@@ -141,8 +142,10 @@ def train_nn(model, X, Y):
             trained_Y = model(batch_X)
             # Make label predictions from argmax of the output.
             trained_labels = torch.stack([one_hots[y.argmax().item()] for y in trained_Y ])
-            trained_hits = batch_Y.eq(trained_labels).all(1).to(torch.int).sum()
+            trained_hits += batch_Y.eq(trained_labels).all(1).to(torch.int).sum()
             trained_misses = len(batch_Y) - trained_hits
+            for i in range(len(batch_indices)):
+                confusion_matrix[batch_Y[i].argmax().item()][trained_Y[i].argmax().item()] +=1
 
             # Calculate losses for back-propagation.
             loss = loss_fn(trained_Y, batch_Y)
@@ -156,32 +159,27 @@ def train_nn(model, X, Y):
                 with torch.no_grad():
                     b_p = 0
                     for p in model.parameters():
-                        p -= args.learning_rate * ((1 - args.momentum) * p.grad + args.momentum * grad_bias[b_p])
+                        p -= args.learning_rate * (1 - args.momentum) * p.grad + args.momentum * grad_bias[b_p]
                         grad_bias[b_p].copy_(p.grad)
                         b_p += 1
 
-            # validate
-            with torch.no_grad():
-                validated_Y = model(reserved_X)
-                validated_labels = torch.stack([one_hots[y.argmax().item()] for y in validated_Y])
-                validated_hits = reserved_Y.eq(validated_labels).all(1).to(torch.int).sum()
-                validated_misses = len(reserved_Y) - validated_hits
-
-            # Report results.
-            print("TRAIN[{},{}]: {}/{}".format(epoch, batch, trained_hits, len(batch_indices)))
-            for i in range(len(batch_indices)):
-                confusion_matrix[batch_Y[i].argmax().item()][trained_Y[i].argmax().item()] +=1
-            print_confusion_matrix(confusion_matrix)
-            confusion_matrix.fill_(0)
-
-            print("VALID[{},{}]: {}/{}".format(epoch, batch, validated_hits, len(reserved_indices)))
+        # Test predictions on validation set.
+        with torch.no_grad():
+            validated_Y = model(reserved_X)
+            validated_labels = torch.stack([one_hots[y.argmax().item()] for y in validated_Y])
+            validated_hits = reserved_Y.eq(validated_labels).all(1).to(torch.int).sum()
+            validated_misses = len(reserved_Y) - validated_hits
             for i in range(len(reserved_indices)):
                 confusion_matrix[reserved_Y[i].argmax().item()][validated_Y[i].argmax().item()] +=1
-            print_confusion_matrix(confusion_matrix)
-            confusion_matrix.fill_(0)
 
-            # Increment batch-in-epoch counter.
-            batch += 1
+        # Report epoch results.
+        print("TRAIN[{}]: {}/{}".format(epoch, trained_hits, len(training_indices)))
+        print_confusion_matrix(confusion_matrix)
+        confusion_matrix.fill_(0)
+
+        print("VALID[{}]: {}/{}".format(epoch, validated_hits, len(reserved_indices)))
+        print_confusion_matrix(confusion_matrix)
+        confusion_matrix.fill_(0)
 
         # Calculate weight changes over the epoch.
         LW_j = [ layer.weight.data.clone().detach().requires_grad_(False) for layer in
