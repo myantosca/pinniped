@@ -247,7 +247,7 @@ X, Y, L = load_arff(args.arff)
 
 # Build set of layers in order.
 layers = OrderedDict()
-
+layers['P'] = torch.nn.LayerNorm(layer_D[0], elementwise_affine=False)
 for i in range(len(layer_D)-1):
     layers['L{}'.format(i)] = torch.nn.Linear(layer_D[i], layer_D[i+1]).to(torch.double)
     if i < len(layer_D) - 2:
