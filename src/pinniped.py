@@ -171,13 +171,13 @@ def train_nn(model, X, Y):
             print("TRAIN[{},{}]: {}/{}".format(epoch, batch, trained_hits, len(batch_indices)))
             for i in range(len(batch_indices)):
                 confusion_matrix[batch_Y[i].argmax().item()][trained_Y[i].argmax().item()] +=1
-            print_matrix(confusion_matrix)
+            print_confusion_matrix(confusion_matrix)
             confusion_matrix.fill_(0)
 
             print("VALID[{},{}]: {}/{}".format(epoch, batch, validated_hits, len(reserved_indices)))
             for i in range(len(reserved_indices)):
                 confusion_matrix[reserved_Y[i].argmax().item()][validated_Y[i].argmax().item()] +=1
-            print_matrix(confusion_matrix)
+            print_confusion_matrix(confusion_matrix)
             confusion_matrix.fill_(0)
 
             # Increment batch-in-epoch counter.
@@ -190,12 +190,16 @@ def train_nn(model, X, Y):
         print("d(w,θ) = {}".format(dTheta))
 
 
-def print_matrix(M):
+def print_confusion_matrix(M):
     s = ""
     for r in range(M.size()[0]):
         s += "|"
         for c in range(M.size()[1]):
-          s += "{}{}|".format('*' if r == c else ' ', M[r][c])
+            if M[r][c] == 0:
+                mark = ' '
+            else:
+                mark = '+' if r == c else '-'
+            s += "{}{}|".format(mark, M[r][c] if M[r][c] > 0 else ' ')
         s += "\n"
     print(s)
 """
