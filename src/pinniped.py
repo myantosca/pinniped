@@ -25,6 +25,7 @@ parser.add_argument('--layer-dims', type=str, required=True)
 reserved = parser.add_mutually_exclusive_group()
 reserved.add_argument('--reserve-frac', type=float, default=None)
 reserved.add_argument('--reserve-every', type=int, default=None)
+parser.add_argument('--sgd', action='store_true')
 activation_units = { 'sigmoid' : torch.nn.Sigmoid, 'tanh' : torch.nn.Tanh, 'relu' : torch.nn.ReLU }
 
 """
@@ -75,6 +76,10 @@ def train_nn(model, X, Y):
     confusion_matrix = torch.zeros(classes, classes).type(torch.int)
     one_hots = torch.nn.functional.one_hot(torch.arange(0,classes)).type(torch.double)
     sample_indices = torch.arange(0,sample_count)
+    if args.sgd:
+        # Stochastic gradient descent: shuffle
+        sample_indices = torch.randperm(sample_count)
+
     if args.reserve_frac is not None:
         # Reserve the last fraction
         reserved = math.ceil(sample_count * args.reserve_frac)
@@ -85,7 +90,11 @@ def train_nn(model, X, Y):
         training_indices = torch.stack([i for i in sample_indices if i % args.reserve_every != 0])
         reserved_indices = sample_indices[0::args.reserve_every]
 
+
     for epoch in range(args.epochs):
+        if args.sgd:
+            # Stochastic gradient descent: shuffle
+            training_indices = torch.stack([training_indices[i] for i in torch.randperm(len(training_indices))])
         passed = 0
         failed = 0
         LW_i = [ layer.weight.data.clone().detach().requires_grad_(True) for layer in
