@@ -19,7 +19,7 @@ mode.add_argument('--train', action='store_true')
 parser.add_argument('--epochs', type=int, default=1)
 parser.add_argument('--batch-size', type=int, default=1)
 parser.add_argument('--learning-rate', type=float, default=0.5)
-parser.add_argument('--momentum', type=float) # @TODO: Implement me!
+parser.add_argument('--momentum', type=float, default = 0.0)
 parser.add_argument('--activation-unit', type=str.lower, choices=['sigmoid', 'tanh', 'relu'], default='sigmoid')
 parser.add_argument('--layer-dims', type=str, required=True)
 reserved = parser.add_mutually_exclusive_group()
@@ -76,6 +76,11 @@ def train_nn(model, X, Y):
     confusion_matrix = torch.zeros(classes, classes).type(torch.int)
     one_hots = torch.nn.functional.one_hot(torch.arange(0,classes)).type(torch.double)
     sample_indices = torch.arange(0,sample_count)
+    grad_bias = [p.data.new_zeros(p.size()) for p in model.parameters()]
+
+    for layer in [layer for layer in model.children() if type (layer) if type(layer) is torch.nn.Linear]:
+        layer.weight.data.copy_(torch.randn_like(layer.weight.data))
+
     if args.sgd:
         # Stochastic gradient descent: shuffle
         sample_indices = torch.randperm(sample_count)
@@ -124,8 +129,11 @@ def train_nn(model, X, Y):
 
             # Turn off autograd so as to not pollute the gradients with validation set nor the backpropagation itself.
             with torch.no_grad():
+                b_p = 0
                 for p in model.parameters():
-                    p -= args.learning_rate * p.grad
+                    p -= args.learning_rate * ((1 - args.momentum) * p.grad + args.momentum * grad_bias[b_p])
+                    grad_bias[b_p].copy_(p.grad)
+                    b_p += 1
                 model.zero_grad()
                 validated_Y = model(reserved_X)
                 validated_labels = torch.stack([one_hots[y.argmax().item()] for y in validated_Y])
@@ -149,7 +157,7 @@ def train_nn(model, X, Y):
         LW_j = [ layer.weight.data.clone().detach().requires_grad_(True) for layer in
                  [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
         dTheta = [d_Theta(W_i, W_j) for (W_i, W_j) in zip(LW_i, LW_j)]
-        print("d(w,θ) = {}".format(dTheta))
+        #print("d(w,θ) = {}".format(dTheta))
 
 
 def print_matrix(M):
@@ -205,6 +213,7 @@ X, Y, L = load_arff(args.arff)
 
 # Build set of layers in order.
 layers = OrderedDict()
+
 for i in range(len(layer_D)-1):
     layers['L{}'.format(i)] = torch.nn.Linear(layer_D[i], layer_D[i+1]).to(torch.double)
     if i < len(layer_D) - 2:
