@@ -13,19 +13,25 @@ Command line arguments
 """
 parser = argparse.ArgumentParser(description='Parameterized Interactive Neural Network Iteratively Plotting Experimental Decisions')
 parser.add_argument('--arff', type=str, required=True)
+
 mode = parser.add_mutually_exclusive_group()
 mode.add_argument('--test', action='store_true')
 mode.add_argument('--train', action='store_true')
+
 parser.add_argument('--epochs', type=int, default=1)
 parser.add_argument('--batch-size', type=int, default=1)
 parser.add_argument('--learning-rate', type=float, default=0.5)
 parser.add_argument('--momentum', type=float, default = 0.0)
 parser.add_argument('--activation-unit', type=str.lower, choices=['sigmoid', 'tanh', 'relu'], default='sigmoid')
 parser.add_argument('--layer-dims', type=str, required=True)
+
 reserved = parser.add_mutually_exclusive_group()
 reserved.add_argument('--reserve-frac', type=float, default=None)
 reserved.add_argument('--reserve-every', type=int, default=None)
+
+parser.add_argument('--autograd-backprop', action='store_true')
 parser.add_argument('--sgd', action='store_true')
+
 activation_units = { 'sigmoid' : torch.nn.Sigmoid, 'tanh' : torch.nn.Tanh, 'relu' : torch.nn.ReLU }
 
 """
@@ -78,8 +84,15 @@ def train_nn(model, X, Y):
     sample_indices = torch.arange(0,sample_count)
     grad_bias = [p.data.new_zeros(p.size()).requires_grad_(False).type(torch.double) for p in model.parameters()]
 
-    for layer in [layer for layer in model.children() if type (layer) if type(layer) is torch.nn.Linear]:
-        layer.weight.data.copy_(torch.randn_like(layer.weight.data))
+    if args.autograd_backprop:
+        for layer in [layer for layer in model.children() if type (layer) if type(layer) is torch.nn.Linear]:
+            print(layer.weight.data, file=sys.stderr)
+    else:
+        for layer in [layer for layer in model.children() if type (layer) if type(layer) is torch.nn.Linear]:
+            layer.weight.data.copy_(torch.rand_like(layer.weight.data))
+            layer.weight.data -= 0.5
+            layer.weight.data *= 0.2
+            print(layer.weight.data, file=sys.stderr)
 
     if args.sgd:
         # Stochastic gradient descent: shuffle
@@ -95,6 +108,7 @@ def train_nn(model, X, Y):
         training_indices = torch.stack([i for i in sample_indices if i % args.reserve_every != 0])
         reserved_indices = sample_indices[0::args.reserve_every]
 
+    optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=args.momentum)
 
     for epoch in range(args.epochs):
         if args.sgd:
@@ -111,6 +125,13 @@ def train_nn(model, X, Y):
         batch = 0
         offset = 0
         while offset < len(training_indices):
+            # Zero out gradients.
+            if args.autograd_backprop:
+                optimizer.zero_grad()
+            else:
+                with torch.no_grad():
+                    model.zero_grad()
+
             batch_indices = training_indices[offset:offset+args.batch_size]
             offset += args.batch_size
             batch_X = X.index_select(0, batch_indices)
@@ -127,19 +148,26 @@ def train_nn(model, X, Y):
             loss = loss_fn(trained_Y, batch_Y)
             loss.backward()
 
-            # Turn off autograd so as to not pollute the gradients with validation set nor the backpropagation itself.
+            # Backpropagation of loss gradients.
+            if args.autograd_backprop:
+                optimizer.step()
+            else:
+                # Turn off autograd so as to not pollute the gradients during back-prop.
+                with torch.no_grad():
+                    b_p = 0
+                    for p in model.parameters():
+                        p -= args.learning_rate * ((1 - args.momentum) * p.grad + args.momentum * grad_bias[b_p])
+                        grad_bias[b_p].copy_(p.grad)
+                        b_p += 1
+
+            # validate
             with torch.no_grad():
-                b_p = 0
-                for p in model.parameters():
-                    p -= args.learning_rate * ((1 - args.momentum) * p.grad + args.momentum * grad_bias[b_p])
-                    grad_bias[b_p].copy_(p.grad)
-                    b_p += 1
-                model.zero_grad()
                 validated_Y = model(reserved_X)
                 validated_labels = torch.stack([one_hots[y.argmax().item()] for y in validated_Y])
                 validated_hits = reserved_Y.eq(validated_labels).all(1).to(torch.int).sum()
                 validated_misses = len(reserved_Y) - validated_hits
 
+            # Report results.
             print("TRAIN[{},{}]: {}/{}".format(epoch, batch, trained_hits, len(batch_indices)))
             for i in range(len(batch_indices)):
                 confusion_matrix[batch_Y[i].argmax().item()][trained_Y[i].argmax().item()] +=1
@@ -152,13 +180,14 @@ def train_nn(model, X, Y):
             print_matrix(confusion_matrix)
             confusion_matrix.fill_(0)
 
+            # Increment batch-in-epoch counter.
             batch += 1
 
         # Calculate weight changes over the epoch.
         LW_j = [ layer.weight.data.clone().detach().requires_grad_(False) for layer in
                  [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
         dTheta = [d_Theta(W_i, W_j) for (W_i, W_j) in zip(LW_i, LW_j)]
-        #print("d(w,θ) = {}".format(dTheta))
+        print("d(w,θ) = {}".format(dTheta))
 
 
 def print_matrix(M):
