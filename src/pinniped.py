@@ -236,8 +236,7 @@ if len(layer_D) < 2:
 # Determine activation unit.
 activation_unit = activation_units[args.activation_unit]
 
-# Set loss function.
-# @TODO: Verify that this is the correct loss function to use.
+# Set loss function to be mean squared error with summation over each training batch.
 loss_fn = torch.nn.MSELoss(reduction='sum')
 
 # Load input (in ARFF format).
