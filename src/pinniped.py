@@ -63,8 +63,16 @@ def load_arff(arff_fname):
     Y = torch.stack([ L[y] for y in Y ])
     return X, Y, L
 
-def d_Theta(W_i, W_j):
-    return torch.stack([torch.tensor((torch.norm(w_j.sub(w_i)).item(), d_theta(w_i, w_j))) for (w_i, w_j) in zip(W_i, W_j)])
+def weight_change(W_i, W_j, dW, dTheta):
+    for layer in range(len(W_j)):
+        dw = torch.zeros(W_j[layer].size()[0], 1)
+        dtheta = torch.zeros(W_j[layer].size()[0], 1)
+        for node in range(W_j[layer].size()[0]):
+            dw[node] = torch.norm(W_j[layer][node].sub(W_i[layer][node])).item()
+            dtheta[node] = d_theta(W_i[layer][node],W_j[layer][node])
+        dW[layer] = torch.cat((dW[layer], dw), 1)
+        dTheta[layer] = torch.cat((dTheta[layer], dtheta), 1)
+
 
 def d_theta(w_i, w_j):
     norm_w_ij = torch.norm(w_i) * torch.norm(w_j)
@@ -117,6 +125,12 @@ def train_nn(model, X, Y):
     reserved_N = len(reserved_indices)
     trained_error = []
     validated_error = []
+
+    dW = [ torch.zeros(layer.weight.data.size()[0], 1) for layer in
+           [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
+    dTheta = [ torch.zeros(layer.weight.data.size()[0], 1) for layer in
+               [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
+
     for epoch in range(args.epochs):
         if args.sgd:
             # Stochastic gradient descent: shuffle
@@ -196,7 +210,7 @@ def train_nn(model, X, Y):
         # Calculate weight changes over the epoch.
         LW_j = [ layer.weight.data.clone().detach().requires_grad_(False) for layer in
                  [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
-        dTheta = [d_Theta(W_i, W_j) for (W_i, W_j) in zip(LW_i, LW_j)]
+        weight_change(LW_i, LW_j, dW, dTheta)
         if (args.interactive):
             plot_training_validation_accuracy(trained_error, validated_error)
             mplp.draw()
