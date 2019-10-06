@@ -7,6 +7,8 @@ import torch
 import math
 from collections import OrderedDict
 import pickle
+import matplotlib.pyplot as mplp
+import matplotlib.colors as mplc
 
 """
 Command line arguments
@@ -31,6 +33,7 @@ reserved.add_argument('--reserve-every', type=int, default=None)
 
 parser.add_argument('--autograd-backprop', action='store_true')
 parser.add_argument('--sgd', action='store_true')
+parser.add_argument('--interactive', action='store_true')
 
 activation_units = { 'sigmoid' : torch.nn.Sigmoid, 'tanh' : torch.nn.Tanh, 'relu' : torch.nn.ReLU }
 
@@ -61,7 +64,7 @@ def load_arff(arff_fname):
     return X, Y, L
 
 def d_Theta(W_i, W_j):
-    return [(torch.norm(w_j.sub(w_i)).item(), d_theta(w_i, w_j)) for (w_i, w_j) in zip(W_i, W_j)]
+    return torch.stack([torch.tensor((torch.norm(w_j.sub(w_i)).item(), d_theta(w_i, w_j))) for (w_i, w_j) in zip(W_i, W_j)])
 
 def d_theta(w_i, w_j):
     norm_w_ij = torch.norm(w_i) * torch.norm(w_j)
@@ -110,10 +113,14 @@ def train_nn(model, X, Y):
 
     optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=args.momentum)
 
+    trained_N = len(training_indices)
+    reserved_N = len(reserved_indices)
+    trained_error = []
+    validated_error = []
     for epoch in range(args.epochs):
         if args.sgd:
             # Stochastic gradient descent: shuffle
-            training_indices = torch.stack([training_indices[i] for i in torch.randperm(len(training_indices))])
+            training_indices = torch.stack([training_indices[i] for i in torch.randperm(trained_N)])
         passed = 0
         failed = 0
         LW_i = [ layer.weight.data.clone().detach().requires_grad_(False) for layer in
@@ -125,15 +132,17 @@ def train_nn(model, X, Y):
         batch = 0
         offset = 0
         trained_hits = 0
-        while offset < len(training_indices):
-            # Zero out gradients.
+        while offset < trained_N:
+            # Zero out gradients at the start of each batch.
             if args.autograd_backprop:
                 optimizer.zero_grad()
             else:
                 with torch.no_grad():
                     model.zero_grad()
 
+            # Map training set input and target to the current batch based on pre-computed index order.
             batch_indices = training_indices[offset:offset+args.batch_size]
+            batch_N = len(batch_indices)
             offset += args.batch_size
             batch_X = X.index_select(0, batch_indices)
             batch_Y = Y.index_select(0, batch_indices)
@@ -142,8 +151,8 @@ def train_nn(model, X, Y):
             trained_Y = model(batch_X)
             # Make label predictions from argmax of the output.
             trained_labels = torch.stack([one_hots[y.argmax().item()] for y in trained_Y ])
+            # Determine the count of hits and misses and update the training confusion matrix.
             trained_hits += batch_Y.eq(trained_labels).all(1).to(torch.int).sum()
-            trained_misses = len(batch_Y) - trained_hits
             for i in range(len(batch_indices)):
                 confusion_matrix[batch_Y[i].argmax().item()][trained_Y[i].argmax().item()] +=1
 
@@ -168,24 +177,32 @@ def train_nn(model, X, Y):
             validated_Y = model(reserved_X)
             validated_labels = torch.stack([one_hots[y.argmax().item()] for y in validated_Y])
             validated_hits = reserved_Y.eq(validated_labels).all(1).to(torch.int).sum()
-            validated_misses = len(reserved_Y) - validated_hits
             for i in range(len(reserved_indices)):
                 confusion_matrix[reserved_Y[i].argmax().item()][validated_Y[i].argmax().item()] +=1
 
         # Report epoch results.
-        print("TRAIN[{}]: {}/{}".format(epoch, trained_hits, len(training_indices)))
+        training_accuracy = float(trained_hits) / float(trained_N)
+        print("TRAIN[{}]: {}/{} ({})".format(epoch, trained_hits, trained_N, training_accuracy))
         print_confusion_matrix(confusion_matrix)
         confusion_matrix.fill_(0)
+        trained_error.append(1.0 - training_accuracy)
 
-        print("VALID[{}]: {}/{}".format(epoch, validated_hits, len(reserved_indices)))
+        validated_accuracy = float(validated_hits) / float(reserved_N)
+        print("VALID[{}]: {}/{} ({})".format(epoch, validated_hits, reserved_N, validated_accuracy))
         print_confusion_matrix(confusion_matrix)
         confusion_matrix.fill_(0)
+        validated_error.append(1.0 - validated_accuracy)
 
         # Calculate weight changes over the epoch.
         LW_j = [ layer.weight.data.clone().detach().requires_grad_(False) for layer in
                  [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
         dTheta = [d_Theta(W_i, W_j) for (W_i, W_j) in zip(LW_i, LW_j)]
-        print("d(w,θ) = {}".format(dTheta))
+        if (args.interactive):
+            mplp.plot(list(range(epoch+1)), trained_error, 'r-')
+            mplp.plot(list(range(epoch+1)), validated_error, 'b-')
+            mplp.draw()
+            mplp.waitforbuttonpress(0)
+            mplp.close()
 
 
 def print_confusion_matrix(M):
