@@ -63,14 +63,14 @@ def load_arff(arff_fname):
     Y = torch.stack([ L[y] for y in Y ])
     return X, Y, L
 
-def weight_change(W_i, W_j, dW, dTheta):
+def weight_change(W_i, W_j, dWNorm, dTheta):
     for layer in range(len(W_j)):
-        dw = torch.zeros(W_j[layer].size()[0], 1)
+        dwnorm = torch.zeros(W_j[layer].size()[0], 1)
         dtheta = torch.zeros(W_j[layer].size()[0], 1)
         for node in range(W_j[layer].size()[0]):
-            dw[node] = torch.norm(W_j[layer][node].sub(W_i[layer][node])).item()
+            dwnorm[node] = torch.norm(W_j[layer][node].sub(W_i[layer][node])).item()
             dtheta[node] = d_theta(W_i[layer][node],W_j[layer][node])
-        dW[layer] = torch.cat((dW[layer], dw), 1)
+        dWNorm[layer] = torch.cat((dWNorm[layer], dwnorm), 1)
         dTheta[layer] = torch.cat((dTheta[layer], dtheta), 1)
 
 
@@ -129,8 +129,8 @@ def train_nn(model, X, Y):
     trained_error = []
     validated_error = []
 
-    dW = [ torch.zeros(layer.weight.data.size()[0], 1) for layer in
-           [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
+    dWNorm = [ torch.zeros(layer.weight.data.size()[0], 1) for layer in
+               [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
     dTheta = [ torch.zeros(layer.weight.data.size()[0], 1) for layer in
                [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
 
@@ -213,7 +213,7 @@ def train_nn(model, X, Y):
         # Calculate weight changes over the epoch.
         LW_j = [ layer.weight.data.clone().detach().requires_grad_(False) for layer in
                  [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
-        weight_change(LW_i, LW_j, dW, dTheta)
+        weight_change(LW_i, LW_j, dWNorm, dTheta)
         if (args.interactive):
             plot_training_validation_accuracy(trained_error, validated_error)
             mplp.draw()
