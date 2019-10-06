@@ -215,20 +215,57 @@ def train_nn(model, X, Y):
                  [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
         weight_change(LW_i, LW_j, dWNorm, dTheta)
         if (args.interactive):
-            plot_training_validation_accuracy(trained_error, validated_error)
-            mplp.draw()
-            mplp.waitforbuttonpress(0)
-            mplp.close()
+            plot_training_validation_accuracy(model, epoch, trained_error, validated_error)
+            plot_confusion_matrix(model, epoch, 'training', trained_confusion)
+            plot_confusion_matrix(model, epoch, 'validation', validated_confusion)
+            plot_weight_angle_changes(model, epoch, dTheta)
+            plot_weight_magnitude_changes(model, epoch, dWNorm)
+
         trained_confusion.fill_(0)
         validated_confusion.fill_(0)
 
 
-def plot_training_validation_accuracy(trained_error, validated_error):
+
+def plot_training_validation_accuracy(model, epoch, trained_error, validated_error):
     mplp.plot(list(range(len(trained_error))), trained_error, 'r-')
     mplp.plot(list(range(len(validated_error))), validated_error, 'b-')
-    mplp.figlegend(labels=('training', 'validation'), loc='best')
+    mplp.legend(labels=('training', 'validation'), loc='upper right')
     mplp.xlabel('Training Epoch')
     mplp.ylabel('Classification Errors (%)')
+    mplp.savefig("accuracy-{}.png".format(epoch))
+    mplp.close()
+
+def plot_weight_angle_changes(model, epoch, dTheta):
+    layers = [n for n, c in model.named_children() if type(c) is torch.nn.Linear]
+    i = 0
+    for dtheta in dTheta:
+        mplp.imshow(dtheta.numpy(), cmap='hot')
+        mplp.colorbar(label='Δθ')
+        mplp.xlabel('Training Epoch')
+        mplp.ylabel('{} Node'.format(layers[i]))
+        mplp.savefig("weight-angle-changes-{}-{}.png".format(layers[i], epoch))
+        mplp.close()
+        i+=1
+
+def plot_weight_magnitude_changes(model, epoch, dWNorm):
+    layers = [n for n, c in model.named_children() if type(c) is torch.nn.Linear]
+    i = 0
+    for dwnorm in dWNorm:
+        mplp.imshow(dwnorm.numpy(), cmap='hot')
+        mplp.colorbar(label='Δ‖w‖')
+        mplp.xlabel('Training Epoch')
+        mplp.ylabel('{} Node'.format(layers[i]))
+        mplp.savefig("weight-magnitude-changes-{}-{}.png".format(layers[i], epoch))
+        mplp.close()
+        i += 1
+
+def plot_confusion_matrix(model, epoch, which, confusion_matrix):
+    mplp.imshow(torch.transpose(confusion_matrix, 0, 1).numpy(), cmap='hot')
+    mplp.colorbar(label='Count')
+    mplp.xlabel('Predicted Class')
+    mplp.ylabel('Target Class')
+    mplp.savefig("confusion-matrix-{}-{}.png".format(which, epoch))
+    mplp.close()
 
 def print_confusion_matrix(M):
     s = ""
