@@ -90,7 +90,8 @@ Train NN.
 def train_nn(model, X, Y):
     classes = model[-1].out_features
     sample_count = X.size()[0]
-    confusion_matrix = torch.zeros(classes, classes).type(torch.int)
+    trained_confusion = torch.zeros(classes, classes).type(torch.int)
+    validated_confusion = torch.zeros(classes, classes).type(torch.int)
     one_hots = torch.nn.functional.one_hot(torch.arange(0,classes)).type(torch.double)
     sample_indices = torch.arange(0,sample_count)
     grad_bias = [p.data.new_zeros(p.size()).requires_grad_(False).type(torch.double) for p in model.parameters()]
@@ -170,7 +171,7 @@ def train_nn(model, X, Y):
             # Determine the count of hits and misses and update the training confusion matrix.
             trained_hits += batch_Y.eq(trained_labels).all(1).to(torch.int).sum()
             for i in range(len(batch_indices)):
-                confusion_matrix[batch_Y[i].argmax().item()][trained_Y[i].argmax().item()] +=1
+                trained_confusion[batch_Y[i].argmax().item()][trained_Y[i].argmax().item()] +=1
 
             # Calculate losses for back-propagation.
             loss = loss_fn(trained_Y, batch_Y)
@@ -194,7 +195,7 @@ def train_nn(model, X, Y):
             validated_labels = torch.stack([one_hots[y.argmax().item()] for y in validated_Y])
             validated_hits = reserved_Y.eq(validated_labels).all(1).to(torch.int).sum()
             for i in range(len(reserved_indices)):
-                confusion_matrix[reserved_Y[i].argmax().item()][validated_Y[i].argmax().item()] +=1
+                validated_confusion[reserved_Y[i].argmax().item()][validated_Y[i].argmax().item()] +=1
 
         # Report epoch results.
         training_accuracy = float(trained_hits) / float(trained_N)
@@ -218,6 +219,8 @@ def train_nn(model, X, Y):
             mplp.draw()
             mplp.waitforbuttonpress(0)
             mplp.close()
+        trained_confusion.fill_(0)
+        validated_confusion.fill_(0)
 
 
 def plot_training_validation_accuracy(trained_error, validated_error):
@@ -239,12 +242,13 @@ def print_confusion_matrix(M):
             s += "{}{}|".format(mark, M[r][c] if M[r][c] > 0 else ' ')
         s += "\n"
     print(s)
+
 """
 Test NN.
 """
 def test_nn(model, X, Y):
     classes = model[-1].out_features
-    confusion_matrix = torch.zeros(classes, classes)
+    tested_confusion = torch.zeros(classes, classes)
     one_hots = torch.nn.functional.one_hot(torch.arange(0,classes)).type(torch.double)
     passed = 0
     failed = 0
@@ -253,7 +257,7 @@ def test_nn(model, X, Y):
         predicted_labels = torch.stack([one_hots[y.argmax().item()] for y in predicted_Y])
         predicted_hits = Y.eq(predicted_labels).all(1).to(torch.int).sum()
         for i in range(Y.size()[0]):
-            confusion_matrix[Y[i].argmax().item()][predicted_Y[i].argmax().item()] +=1
+            tested_confusion[Y[i].argmax().item()][predicted_Y[i].argmax().item()] +=1
 
     print("TEST: {}/{}".format(predicted_hits, Y.size()[0]), file=sys.stderr)
     print_confusion_matrix(tested_confusion)
