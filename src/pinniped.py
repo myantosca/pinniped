@@ -34,7 +34,7 @@ reserved.add_argument('--reserve-every', type=int, default=None)
 parser.add_argument('--autograd-backprop', action='store_true')
 parser.add_argument('--sgd', action='store_true')
 parser.add_argument('--interactive', action='store_true')
-
+parser.add_argument('--debug', action='store_true')
 activation_units = { 'sigmoid' : torch.nn.Sigmoid, 'tanh' : torch.nn.Tanh, 'relu' : torch.nn.ReLU }
 
 """
@@ -97,13 +97,15 @@ def train_nn(model, X, Y):
 
     if args.autograd_backprop:
         for layer in [layer for layer in model.children() if type (layer) if type(layer) is torch.nn.Linear]:
-            print(layer.weight.data, file=sys.stderr)
+            if args.debug:
+                print(layer.weight.data, file=sys.stderr)
     else:
         for layer in [layer for layer in model.children() if type (layer) if type(layer) is torch.nn.Linear]:
             layer.weight.data.copy_(torch.rand_like(layer.weight.data))
             layer.weight.data -= 0.5
             layer.weight.data *= 0.2
-            print(layer.weight.data, file=sys.stderr)
+            if args.debug:
+                print(layer.weight.data, file=sys.stderr)
 
     if args.sgd:
         # Stochastic gradient descent: shuffle
@@ -196,16 +198,16 @@ def train_nn(model, X, Y):
 
         # Report epoch results.
         training_accuracy = float(trained_hits) / float(trained_N)
-        print("TRAIN[{}]: {}/{} ({})".format(epoch, trained_hits, trained_N, training_accuracy))
-        print_confusion_matrix(confusion_matrix)
-        confusion_matrix.fill_(0)
         trained_error.append(1.0 - training_accuracy)
+        print("TRAIN[{}]: {}/{} ({})".format(epoch, trained_hits, trained_N, training_accuracy), file=sys.stderr)
+        if args.debug:
+            print_confusion_matrix(trained_confusion)
 
         validated_accuracy = float(validated_hits) / float(reserved_N)
-        print("VALID[{}]: {}/{} ({})".format(epoch, validated_hits, reserved_N, validated_accuracy))
-        print_confusion_matrix(confusion_matrix)
-        confusion_matrix.fill_(0)
         validated_error.append(1.0 - validated_accuracy)
+        print("VALID[{}]: {}/{} ({})".format(epoch, validated_hits, reserved_N, validated_accuracy), file=sys.stderr)
+        if args.debug:
+            print_confusion_matrix(validated_confusion)
 
         # Calculate weight changes over the epoch.
         LW_j = [ layer.weight.data.clone().detach().requires_grad_(False) for layer in
@@ -253,8 +255,8 @@ def test_nn(model, X, Y):
         for i in range(Y.size()[0]):
             confusion_matrix[Y[i].argmax().item()][predicted_Y[i].argmax().item()] +=1
 
-    print("TEST: {}/{}".format(predicted_hits, Y.size()[0]))
-    print(confusion_matrix)
+    print("TEST: {}/{}".format(predicted_hits, Y.size()[0]), file=sys.stderr)
+    print_confusion_matrix(tested_confusion)
 
 
 
