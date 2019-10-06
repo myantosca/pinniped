@@ -7,6 +7,8 @@ import torch
 import math
 from collections import OrderedDict
 import pickle
+import matplotlib
+matplotlib.use('cairo')
 import matplotlib.pyplot as mplp
 import matplotlib.colors as mplc
 
