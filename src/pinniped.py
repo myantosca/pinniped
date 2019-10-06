@@ -198,12 +198,18 @@ def train_nn(model, X, Y):
                  [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
         dTheta = [d_Theta(W_i, W_j) for (W_i, W_j) in zip(LW_i, LW_j)]
         if (args.interactive):
-            mplp.plot(list(range(epoch+1)), trained_error, 'r-')
-            mplp.plot(list(range(epoch+1)), validated_error, 'b-')
+            plot_training_validation_accuracy(trained_error, validated_error)
             mplp.draw()
             mplp.waitforbuttonpress(0)
             mplp.close()
 
+
+def plot_training_validation_accuracy(trained_error, validated_error):
+    mplp.plot(list(range(len(trained_error))), trained_error, 'r-')
+    mplp.plot(list(range(len(validated_error))), validated_error, 'b-')
+    mplp.figlegend(labels=('training', 'validation'), loc='best')
+    mplp.xlabel('Training Epoch')
+    mplp.ylabel('Classification Errors (%)')
 
 def print_confusion_matrix(M):
     s = ""
