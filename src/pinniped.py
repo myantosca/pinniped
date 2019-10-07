@@ -38,6 +38,7 @@ parser.add_argument('--autograd-backprop', action='store_true')
 parser.add_argument('--sgd', action='store_true')
 parser.add_argument('--interactive', action='store_true')
 parser.add_argument('--debug', action='store_true')
+parser.add_argument('--activation-bins', type=int, default=20)
 
 activation_units = { 'sigmoid' : torch.nn.Sigmoid, 'tanh' : torch.nn.Tanh, 'relu' : torch.nn.ReLU }
 
@@ -224,11 +225,10 @@ def train_nn(model, X, Y):
             plot_confusion_matrix(model, epoch, 'validation', validated_confusion)
             plot_weight_angle_changes(model, epoch, dTheta)
             plot_weight_magnitude_changes(model, epoch, dWNorm)
+            plot_activation_heatmap(model, epoch, activations)
 
         trained_confusion.fill_(0)
         validated_confusion.fill_(0)
-
-
 
 def plot_training_validation_accuracy(model, epoch, trained_error, validated_error):
     mplp.plot(list(range(len(trained_error))), trained_error, 'r-')
@@ -284,6 +284,16 @@ def print_confusion_matrix(M):
         s += "\n"
     print(s)
 
+def plot_activation_heatmap(model, epoch, activations):
+    for layer in activations:
+        mplp.imshow(activations[layer].numpy(), cmap='hot')
+        mplp.colorbar(label='Activations')
+        mplp.xlabel('Node Output')
+        mplp.ylabel('{} Node'.format(layer))
+        mplp.xticks([ x / args.activation_bins for x in range(args.activation_bins)])
+        mplp.savefig("activations-{}-{}.png".format(layer, epoch))
+        mplp.close()
+
 """
 Test NN.
 """
@@ -304,10 +314,12 @@ def test_nn(model, X, Y):
     print_confusion_matrix(tested_confusion)
 
 def capture_hidden_outputs_hook(module, features_in, features_out, **kwargs):
-    if args.debug:
-        print("features_out = {}".format(features_out.size()), file=sys.stderr)
-        print("activations[{}] = {}".format(kwargs['name'], activations[kwargs['name']].size()), file=sys.stderr)
-    activations[kwargs['name']] = torch.cat((activations[kwargs['name']], features_out), 0)
+    for y in features_out:
+        d = 0
+        for f in y:
+            f_bin = math.ceil(args.activation_bins * f) - 1
+            activations[kwargs['name']][d][f_bin] += 1
+            d += 1
     return None
 
 """
@@ -341,7 +353,7 @@ for i in range(len(layer_D)-1):
     if i < len(layer_D) - 2:
         activation_layer_name = 'A{}'.format(i)
         layers[activation_layer_name] = activation_unit().to(torch.double)
-        activations[activation_layer_name] = torch.empty(0, layer_D[i+1]).to(torch.double)
+        activations[activation_layer_name] = torch.zeros(layer_D[i+1], args.activation_bins).to(torch.double)
         layers[activation_layer_name].register_forward_hook(functools.partial(capture_hidden_outputs_hook, name=activation_layer_name))
 
 model = torch.nn.Sequential(layers)
