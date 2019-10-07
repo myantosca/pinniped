@@ -220,7 +220,7 @@ def train_nn(model, X, Y):
         LW_j = [ layer.weight.data.clone().detach().requires_grad_(False) for layer in
                  [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
         weight_change(LW_i, LW_j, dWNorm, dTheta)
-        if (epoch % args.plot_every == 0):
+        if ((epoch + 1) % args.plot_every == 0):
             plot_training_validation_accuracy(model, epoch, trained_error, validated_error)
             plot_confusion_matrix(model, epoch, 'training', trained_confusion)
             plot_confusion_matrix(model, epoch, 'validation', validated_confusion)
