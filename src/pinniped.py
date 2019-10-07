@@ -39,6 +39,7 @@ parser.add_argument('--sgd', action='store_true')
 parser.add_argument('--interactive', action='store_true')
 parser.add_argument('--debug', action='store_true')
 parser.add_argument('--activation-bins', type=int, default=20)
+parser.add_argument('--plot-every', type=int, default=1)
 
 activation_units = { 'sigmoid' : torch.nn.Sigmoid, 'tanh' : torch.nn.Tanh, 'relu' : torch.nn.ReLU }
 
@@ -219,16 +220,22 @@ def train_nn(model, X, Y):
         LW_j = [ layer.weight.data.clone().detach().requires_grad_(False) for layer in
                  [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
         weight_change(LW_i, LW_j, dWNorm, dTheta)
-        if (args.interactive):
+        if (epoch % args.plot_every == 0):
             plot_training_validation_accuracy(model, epoch, trained_error, validated_error)
             plot_confusion_matrix(model, epoch, 'training', trained_confusion)
             plot_confusion_matrix(model, epoch, 'validation', validated_confusion)
             plot_weight_angle_changes(model, epoch, dTheta)
             plot_weight_magnitude_changes(model, epoch, dWNorm)
             plot_activation_heatmap(model, epoch, activations)
+            if (args.interactive):
+                show_combined_plots(epoch)
 
+        # Reset confusion matrices for next epoch.
         trained_confusion.fill_(0)
         validated_confusion.fill_(0)
+
+def show_combined_plots(epoch):
+    return
 
 def plot_training_validation_accuracy(model, epoch, trained_error, validated_error):
     mplp.plot(list(range(len(trained_error))), trained_error, 'r-')
