@@ -11,6 +11,7 @@ import matplotlib
 matplotlib.use('cairo')
 import matplotlib.pyplot as mplp
 import matplotlib.colors as mplc
+import functools
 
 """
 Command line arguments
@@ -37,6 +38,7 @@ parser.add_argument('--autograd-backprop', action='store_true')
 parser.add_argument('--sgd', action='store_true')
 parser.add_argument('--interactive', action='store_true')
 parser.add_argument('--debug', action='store_true')
+
 activation_units = { 'sigmoid' : torch.nn.Sigmoid, 'tanh' : torch.nn.Tanh, 'relu' : torch.nn.ReLU }
 
 """
@@ -301,7 +303,12 @@ def test_nn(model, X, Y):
     print("TEST: {}/{}".format(predicted_hits, Y.size()[0]), file=sys.stderr)
     print_confusion_matrix(tested_confusion)
 
-
+def capture_hidden_outputs_hook(module, features_in, features_out, **kwargs):
+    if args.debug:
+        print("features_out = {}".format(features_out.size()), file=sys.stderr)
+        print("activations[{}] = {}".format(kwargs['name'], activations[kwargs['name']].size()), file=sys.stderr)
+    activations[kwargs['name']] = torch.cat((activations[kwargs['name']], features_out), 0)
+    return None
 
 """
 Main
@@ -326,11 +333,16 @@ X, Y, L = load_arff(args.arff)
 
 # Build set of layers in order.
 layers = OrderedDict()
+activations = OrderedDict()
 layers['P'] = torch.nn.LayerNorm(layer_D[0], elementwise_affine=False)
 for i in range(len(layer_D)-1):
-    layers['L{}'.format(i)] = torch.nn.Linear(layer_D[i], layer_D[i+1]).to(torch.double)
+    linear_layer_name = 'L{}'.format(i)
+    layers[linear_layer_name] = torch.nn.Linear(layer_D[i], layer_D[i+1]).to(torch.double)
     if i < len(layer_D) - 2:
-        layers['A{}'.format(i)] = activation_unit().to(torch.double)
+        activation_layer_name = 'A{}'.format(i)
+        layers[activation_layer_name] = activation_unit().to(torch.double)
+        activations[activation_layer_name] = torch.empty(0, layer_D[i+1]).to(torch.double)
+        layers[activation_layer_name].register_forward_hook(functools.partial(capture_hidden_outputs_hook, name=activation_layer_name))
 
 model = torch.nn.Sequential(layers)
 # Create NN model.
