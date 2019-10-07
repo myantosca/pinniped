@@ -1,0 +1,146 @@
+\documentclass[10pt,epsf]{article}
+\usepackage{amssymb,amsmath,amsthm,amsfonts,mathrsfs,color}
+\usepackage{epsfig}
+\usepackage{latexsym}
+\usepackage{verbatim}
+\usepackage{setspace}
+\usepackage{algorithm}
+\usepackage[noend]{algorithmic}
+\usepackage{algorithmicext}
+\usepackage{ifthen}
+\usepackage{graphicx}
+\usepackage{pgfplots}
+\usepackage{longtable}
+\usepackage{url}
+\usepackage{hyperref}
+\usepackage[utf8]{luainputenc}
+\usepackage[bibencoding=utf8,backend=biber]{biblatex}
+\addbibresource{cosc6342-hw2-michael-yantosca.bib}
+
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\lhead{{\footnotesize{COSC6342 HW 2}}}
+\rhead{{\footnotesize{Michael Yantosca}}}
+
+\newtheorem{fact}{Fact}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{claim}{Claim}
+\newtheorem{remark}{Remark}
+\newtheorem{definition}{Definition}
+\newtheorem{corollary}{Corollary}
+\newtheorem{proposition}{Proposition}
+\newtheorem{example}{Example}
+\newtheorem{observation}{Observation}
+\newtheorem{exercise}{Exercise}
+\newtheorem{statement}{Statement}
+\newtheorem{problem}{Problem}
+
+\newcommand{\TODO}[0]{\textbf{\color{red}{TODO}}}
+\newcommand{\UNFINISHED}[0]{\textbf{\color{orange}{UNFINISHED}}}
+\newcommand{\ul}[1]{\underline{#1}}
+\newcommand{\nseq}[1]{#1_{1}, \dots, #1_{n}}
+\newcommand{\nnseq}[1]{#1_{1}, #1_{2}, \dots, #1_{n}}
+\newcommand{\nseqeq}[1]{#1 = 1, \dots, n }
+\newcommand{\nnseqeq}[1]{#1 = 1, 2, \dots, n }
+\newcommand{\N}[2]{\mathcal{N}(#1, #2)}
+\newcommand{\mxn}[1]{\mathbf{#1}}
+\newcommand{\erfc}[1]{\mathbf{\Phi}(#1)}
+\DeclareMathOperator*{\argmax}{arg\,max}
+
+\everymath{\textstyle}
+
+\usepgfplotslibrary{external}
+\usepgfplotslibrary{statistics}
+\usepgfplotslibrary{groupplots}
+\usepgfplotslibrary{fillbetween}
+\usetikzlibrary{pgfplots.groupplots, external, patterns}
+\tikzexternalize[]
+\pgfplotsset{
+  tick label style={font=\footnotesize},
+  label style={font=\small},
+  legend style={font=\small},
+  compat=newest
+}
+
+\date{}
+\title{Is Amplitude All You Need?}
+\author{Michael Yantosca}
+\begin{document}
+\maketitle
+\tableofcontents
+\abstract{}{
+}
+\section{Introduction}{
+  The past decade in natural language processing (NLP) research has seen a trend of
+  eliminating complex intermediate stages in models in favor of deep-learning approaches
+  that translate input data directly to the desired output. Salient examples in this vein include
+  ``Deep Speech''\autocite{deepspeech}; ``Listen, Attend and Spell''\autocite{LAS};
+  and most recently, ``Attention Is All You Need''\autocite{AIAYN}. While the former two
+  rely on recurrent neural networks to avoid phonemic representations or costly
+  hidden Markov models (HMMs), the last dispenses with recurrence and convolutions
+  entirely, asserting that a simplified attention mechanism is all that is required
+  to achieve competitive results.
+
+  These intermediate state reductions have been directed primarily at the models
+  which have been heretofore the province of linguistic theory. If the issue is
+  mostly a matter of linear transformation, the question then arises as to how
+  minimally one can preprocess the acoustic data and still make reasonable predictions.
+
+  In the research mentioned above, acoustic input data typically takes the form of
+  spectrograms\autocite[2]{deepspeech} and filter-bank spectra features\autocite[2]{LAS}.
+  The Transformer architecture in the last paper deals strictly with textual sequence-to-sequence
+  translation as opposed to speech recognition, but the minimalist principles cohere with
+  the other work, and the removal of recurrence and the published results are worth mentioning.
+
+  Since spectrograms and similar data representations are themselves simply convolutions
+  of the raw amplitude data, one could theoretically apply the same minimalist principles in
+  the opposite direction and use windowed batches of raw amplitudes as direct input to
+  a neural network. This work measures the feasibility of such an approach applied to
+  English phoneme classification. In keeping with the theme of simplicity, the neural
+  network constructed solely uses backpropagation and stochastic gradient descent for training.
+}
+
+\section{Implementation}{
+  The complexities of splitting continuous audio data into phonemic frames is glossed
+  over in the interest of time. The training and test sets come from the University
+  of East Anglia time series classification archive\autocite{ueamvtsca}\autocite{Phoneme},
+  which provided in the Phoneme challenge a small subset of the 370,000 labeled phoneme frames originally
+  published by Hamooni and Mueen\autocite{DDHCPTS}. The frames are normalized as a series
+  of 1,024 amplitude values followed by a numeric phoneme label.
+
+  Notably, the Phoneme challenge currently reports a maximum achieved accuracy of 30.28\%.
+  This may be due to the fact that the training set (214 examples) is an order of magnitude smaller than
+  the test set (1,896 examples), and data-hungry techniques such as neural networks are likely to fare
+  poorly in the context of the challenge. However, the uniformity of the data layout provided in easily
+  digestible ARFFs\autocite{scipyloadarff} provided present a manageable environment for an initial foray in
+  evaluating the usefulness of training a neural network solely on amplitude values with only
+  minor, inexpensive preprocessing.
+
+  The python program written to execute the experiments is dubbed the
+  Parameterized Interactive Neural Network Iteratively Plotting Experimental Decisions, or PINNIPED for short.
+  PINNIPED is built on PyTorch\autocite{torchnnref}\autocite{torchnntut},
+  leveraging the framework's autograd feature, and can operate in either training mode or test mode.
+  The user may specify a number of parameters to minutely specify the neural network to be trained,
+  including non-linear activation, learning rate, learning momentum, batch size, training epochs,
+  number of hidden layers and nodes within each layer individually, and input test or training set ARFFs.
+
+  The periodically generated plots created through the matplotlib\autocite{mplpplot} library include
+  the following:
+  \begin{itemize}
+  \item{a plot of training and validation accuracy over time (epochs)}
+  \item{per-layer heatmaps of weight vector changes by angle and norm per node over time (epochs)}
+  \item{per-layer heatmaps of non-linear activation counts of nodes against uniform bins}
+  \item{heatmaps of training and validation confusion matrices}
+  \end{itemize}
+
+  Users are encouraged to review the included \texttt{README.md} or the program's help message
+  for details on usage.
+}
+\section{Results}{
+}
+\section{Conclusions}{
+}
+
+\printbibliography
+\end{document}
