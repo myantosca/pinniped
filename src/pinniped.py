@@ -264,8 +264,8 @@ def plot_weight_magnitude_changes(model, epoch, dWNorm):
         i += 1
 
 def plot_confusion_matrix(model, epoch, which, confusion_matrix):
-    mplp.imshow(torch.transpose(confusion_matrix, 0, 1).numpy(), cmap='hot')
-    mplp.colorbar(label='Count')
+    mplp.imshow(confusion_matrix.numpy(), cmap='hot')
+    mplp.colorbar(label='Predictions')
     mplp.xlabel('Predicted Class')
     mplp.ylabel('Target Class')
     mplp.savefig("confusion-matrix-{}-{}.png".format(which, epoch))
