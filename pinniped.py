@@ -244,6 +244,7 @@ def plot_training_validation_accuracy(model, epoch, trained_error, validated_err
     mplp.legend(labels=('training', 'validation'), loc='upper right')
     mplp.xlabel('Training Epoch')
     mplp.ylabel('Classification Errors (%)')
+    mplp.title('Model Accuracy over Time\n{}'.format(model_params_shorthand))
     mplp.savefig("accuracy-{}.png".format(epoch))
     mplp.close()
 
@@ -255,6 +256,7 @@ def plot_weight_angle_changes(model, epoch, dTheta):
         mplp.colorbar(label='Δθ')
         mplp.xlabel('Training Epoch')
         mplp.ylabel('{} Node'.format(layers[i]))
+        mplp.title('Weight Vector Angle Changes Per {} Node Over Time\n{}'.format(layers[i], model_params_shorthand))
         mplp.savefig("weight-angle-changes-{}-{}.png".format(layers[i], epoch))
         mplp.close()
         i+=1
@@ -267,6 +269,7 @@ def plot_weight_magnitude_changes(model, epoch, dWNorm):
         mplp.colorbar(label='Δ‖w‖')
         mplp.xlabel('Training Epoch')
         mplp.ylabel('{} Node'.format(layers[i]))
+        mplp.title('Weight Vector Norm Changes Per {} Node Over Time\n{}'.format(layers[i], model_params_shorthand))
         mplp.savefig("weight-magnitude-changes-{}-{}.png".format(layers[i], epoch))
         mplp.close()
         i += 1
@@ -276,6 +279,7 @@ def plot_confusion_matrix(model, epoch, which, confusion_matrix):
     mplp.colorbar(label='Predictions')
     mplp.xlabel('Predicted Class')
     mplp.ylabel('Target Class')
+    mplp.title('{} Set Confusion Matrix @ t = {}\n{}'.format(which.capitalize(), epoch, model_params_shorthand))
     mplp.savefig("confusion-matrix-{}-{}.png".format(which, epoch))
     mplp.close()
 
@@ -300,6 +304,7 @@ def plot_activation_heatmap(model, epoch, activations):
         mplp.ylabel('{} Node'.format(layer))
         bin_ticks = [x for x in range(args.activation_bins + 1) if (x % (args.activation_bins/10)) == 0]
         mplp.xticks(bin_ticks, [ b / args.activation_bins for b in bin_ticks])
+        mplp.title('Non-linear Activations Per {} Node\n{}'.format(layer, model_params_shorthand))
         mplp.savefig("activations-{}-{}.png".format(layer, epoch))
         mplp.close()
 
@@ -346,6 +351,9 @@ if len(layer_D) < 2:
 
 # Determine activation unit.
 activation_unit = activation_units[args.activation_unit]
+
+# Create shorthand string to describe model params (useful in plots).
+model_params_shorthand = '(i = {}, h = {}, o = {}, a={})'.format(layer_D[0], layer_D[1:-1], layer_D[-1], args.activation_unit)
 
 # Set loss function to be mean squared error with summation over each training batch.
 loss_fn = torch.nn.MSELoss(reduction='sum')
