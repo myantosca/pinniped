@@ -23,6 +23,7 @@ mode = parser.add_mutually_exclusive_group()
 mode.add_argument('--test', action='store_true')
 mode.add_argument('--train', action='store_true')
 
+parser.add_argument('--model-file', type=str, default='./model.nn')
 parser.add_argument('--epochs', type=int, default=1)
 parser.add_argument('--batch-size', type=int, default=1)
 parser.add_argument('--learning-rate', type=float, default=0.5)
@@ -372,9 +373,9 @@ print(model, file=sys.stderr)
 # @TODO: Save trained model for future loading. Otherwise, have to train before testing.
 if args.train:
     train_nn(model, X, Y)
-    with open('./model.nn', 'wb') as fout:
+    with open(args.model_file, 'wb') as fout:
         pickle.dump(model.state_dict(), fout)
 elif args.test:
-    with open('./model.nn', 'rb') as fin:
+    with open(args.model_file, 'rb') as fin:
         model.load_state_dict(pickle.load(fin))
     test_nn(model, X, Y)
