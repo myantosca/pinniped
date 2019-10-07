@@ -243,7 +243,7 @@ def plot_weight_angle_changes(model, epoch, dTheta):
     layers = [n for n, c in model.named_children() if type(c) is torch.nn.Linear]
     i = 0
     for dtheta in dTheta:
-        mplp.imshow(dtheta.numpy(), cmap='hot')
+        mplp.pcolormesh(dtheta.numpy(), cmap='hot')
         mplp.colorbar(label='Δθ')
         mplp.xlabel('Training Epoch')
         mplp.ylabel('{} Node'.format(layers[i]))
@@ -255,7 +255,7 @@ def plot_weight_magnitude_changes(model, epoch, dWNorm):
     layers = [n for n, c in model.named_children() if type(c) is torch.nn.Linear]
     i = 0
     for dwnorm in dWNorm:
-        mplp.imshow(dwnorm.numpy(), cmap='hot')
+        mplp.pcolormesh(dwnorm.numpy(), cmap='hot')
         mplp.colorbar(label='Δ‖w‖')
         mplp.xlabel('Training Epoch')
         mplp.ylabel('{} Node'.format(layers[i]))
