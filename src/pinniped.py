@@ -363,8 +363,9 @@ for i in range(len(layer_D)-1):
     if i < len(layer_D) - 2:
         activation_layer_name = 'A{}'.format(i)
         layers[activation_layer_name] = activation_unit().to(torch.double)
-        activations[activation_layer_name] = torch.zeros(layer_D[i+1], args.activation_bins).to(torch.double)
-        layers[activation_layer_name].register_forward_hook(functools.partial(capture_hidden_outputs_hook, name=activation_layer_name))
+        if args.train:
+            activations[activation_layer_name] = torch.zeros(layer_D[i+1], args.activation_bins).to(torch.double)
+            layers[activation_layer_name].register_forward_hook(functools.partial(capture_hidden_outputs_hook, name=activation_layer_name))
 
 model = torch.nn.Sequential(layers)
 # Create NN model.
