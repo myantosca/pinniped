@@ -319,7 +319,8 @@ def test_nn(model, X, Y):
         for i in range(Y.size()[0]):
             tested_confusion[Y[i].argmax().item()][predicted_Y[i].argmax().item()] +=1
 
-    print("TEST: {}/{}".format(predicted_hits, Y.size()[0]), file=sys.stderr)
+    test_accuracy = float(predicted_hits) / float(Y.size()[0])
+    print("TEST: {}/{} ({})".format(predicted_hits, Y.size()[0], test_accuracy ), file=sys.stderr)
     print_confusion_matrix(tested_confusion)
 
 def capture_hidden_outputs_hook(module, features_in, features_out, **kwargs):
