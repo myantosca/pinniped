@@ -134,9 +134,9 @@ def train_nn(model, X, Y):
     trained_error = []
     validated_error = []
 
-    dWNorm = [ torch.zeros(layer.weight.data.size()[0], 1) for layer in
+    dWNorm = [ torch.empty(layer.weight.data.size()[0], 0) for layer in
                [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
-    dTheta = [ torch.zeros(layer.weight.data.size()[0], 1) for layer in
+    dTheta = [ torch.empty(layer.weight.data.size()[0], 0) for layer in
                [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
 
     for epoch in range(args.epochs):
