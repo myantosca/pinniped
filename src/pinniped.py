@@ -286,11 +286,12 @@ def print_confusion_matrix(M):
 
 def plot_activation_heatmap(model, epoch, activations):
     for layer in activations:
-        mplp.imshow(activations[layer].numpy(), cmap='hot')
+        mplp.pcolormesh(activations[layer].numpy(), cmap='hot')
         mplp.colorbar(label='Activations')
         mplp.xlabel('Node Output')
         mplp.ylabel('{} Node'.format(layer))
-        mplp.xticks([ x / args.activation_bins for x in range(args.activation_bins)])
+        bin_ticks = [x for x in range(args.activation_bins + 1) if (x % (args.activation_bins/10)) == 0]
+        mplp.xticks(bin_ticks, [ b / args.activation_bins for b in bin_ticks])
         mplp.savefig("activations-{}-{}.png".format(layer, epoch))
         mplp.close()
 
