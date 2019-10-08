@@ -21,12 +21,6 @@ parser = argparse.ArgumentParser(description='Parameterized Interactive Neural N
 parser.add_argument('--train-arff', type=str)
 parser.add_argument('--test-arff', type=str)
 
-parser.add_argument('--test', action='store_true')
-parser.add_argument('--train', action='store_true')
-
-parser.add_argument('--test-every', action='store_true')
-parser.add_argument('--test-every-arff', type=str)
-
 parser.add_argument('--model-file', type=str, default='model.nn')
 parser.add_argument('--epochs', type=int, default=1)
 parser.add_argument('--batch-size', type=int, default=1)
@@ -409,7 +403,7 @@ for i in range(len(layer_D)-1):
     if i < len(layer_D) - 2:
         activation_layer_name = 'A{}'.format(i)
         layers[activation_layer_name] = activation_unit().to(torch.double)
-        if args.train:
+        if args.train_arff is not None:
             activations[activation_layer_name] = torch.zeros(layer_D[i+1], args.activation_bins).to(torch.double)
             layers[activation_layer_name].register_forward_hook(functools.partial(capture_hidden_outputs_hook, name=activation_layer_name))
 
@@ -419,11 +413,11 @@ print(model, file=sys.stderr)
 
 # Train or test, depending on user spec.
 # @TODO: Save trained model for future loading. Otherwise, have to train before testing.
-if args.train:
+if args.train_arff is not None:
     train_nn(model, X_train, Y_train, X_test, Y_test)
     with open(os.path.join(args.workspace_dir, args.model_file), 'wb') as fout:
         pickle.dump(model.state_dict(), fout)
-elif args.test:
+elif args.test is not None:
     with open(os.path.join(args.workspace_dir, args.model_file), 'rb') as fin:
         model.load_state_dict(pickle.load(fin))
     test_nn(model, X_test, Y_test)
