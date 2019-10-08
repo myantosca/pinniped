@@ -192,8 +192,8 @@ def train_nn(model, X, Y):
                 with torch.no_grad():
                     b_p = 0
                     for p in model.parameters():
-                        p -= args.learning_rate * (1 - args.momentum) * p.grad + args.momentum * grad_bias[b_p]
-                        grad_bias[b_p].copy_(p.grad)
+                        grad_bias[b_p].copy_(args.learning_rate * (1 - args.momentum) * p.grad + args.momentum * grad_bias[b_p])
+                        p -= grad_bias[b_p]
                         b_p += 1
 
         # Test predictions on validation set.
