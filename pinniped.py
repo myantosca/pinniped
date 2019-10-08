@@ -243,6 +243,8 @@ def train_nn(model, X, Y, test_X, test_Y):
             plot_training_validation_accuracy(model, epoch, trained_error, validated_error, tested_error)
             plot_confusion_matrix(model, epoch, 'training', trained_confusion)
             plot_confusion_matrix(model, epoch, 'validation', validated_confusion)
+            if args.test_arff is not None:
+                plot_confusion_matrix(model, epoch, 'test', tested_confusion)
             plot_weight_angle_changes(model, epoch, dTheta)
             plot_weight_magnitude_changes(model, epoch, dWNorm)
             plot_activation_heatmap(model, epoch, activations)
