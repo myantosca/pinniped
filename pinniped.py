@@ -40,6 +40,7 @@ parser.add_argument('--debug', action='store_true')
 parser.add_argument('--activation-bins', type=int, default=20)
 parser.add_argument('--plot-every', type=int, default=1)
 parser.add_argument('--workspace-dir', type=str, default='.')
+parser.add_argument('--save-every', type=int, default=1)
 
 activation_units = { 'sigmoid' : torch.nn.Sigmoid, 'tanh' : torch.nn.Tanh, 'relu' : torch.nn.ReLU }
 
@@ -61,6 +62,7 @@ def load_arff(arff_fname):
     X, Y = zip(*[ (XY[0:-1], XY[-1].decode('UTF-8')) for XY in [ tuple(nd) for nd in arff_data ] ])
     L = OrderedDict()
     classes = len(arff_meta['target'][1])
+    # This mapping is a precaution in case the class labels are not a monotonic sequence corresponding to the indices.
     for c in range(classes):
         y = arff_meta['target'][1][c]
         L[y] = one_hots[c]
@@ -227,7 +229,7 @@ def train_nn(model, X, Y, test_X, test_Y):
         LW_j = [ layer.weight.data.clone().detach().requires_grad_(False) for layer in
                  [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
         weight_change(LW_i, LW_j, dWNorm, dTheta)
-        if ((epoch + 1) % args.plot_every == 0):
+        if ((epoch + 1) % args.plot_every == 0) or (epoch + 1 == args.epochs):
             plot_training_validation_accuracy(model, epoch, trained_error, validated_error, tested_error)
             plot_confusion_matrix(model, epoch, 'training', trained_confusion)
             plot_confusion_matrix(model, epoch, 'validation', validated_confusion)
@@ -243,6 +245,11 @@ def train_nn(model, X, Y, test_X, test_Y):
         trained_confusion.fill_(0)
         validated_confusion.fill_(0)
         tested_confusion.fill_(0)
+
+        if ((epoch + 1) % args.save_every == 0):
+            with open(os.path.join(args.workspace_dir, '{}.{}'.format(args.model_file, epoch)), 'wb') as fout:
+                pickle.dump(model.state_dict(), fout)
+
 
 def show_combined_plots(epoch):
     return
