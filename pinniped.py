@@ -18,11 +18,14 @@ import os.path
 Command line arguments
 """
 parser = argparse.ArgumentParser(description='Parameterized Interactive Neural Network Iteratively Plotting Experimental Decisions')
-parser.add_argument('--arff', type=str, required=True)
+parser.add_argument('--train-arff', type=str)
+parser.add_argument('--test-arff', type=str)
 
-mode = parser.add_mutually_exclusive_group()
-mode.add_argument('--test', action='store_true')
-mode.add_argument('--train', action='store_true')
+parser.add_argument('--test', action='store_true')
+parser.add_argument('--train', action='store_true')
+
+parser.add_argument('--test-every', action='store_true')
+parser.add_argument('--test-every-arff', type=str)
 
 parser.add_argument('--model-file', type=str, default='model.nn')
 parser.add_argument('--epochs', type=int, default=1)
@@ -96,11 +99,12 @@ def d_theta(w_i, w_j):
 """
 Train NN.
 """
-def train_nn(model, X, Y):
+def train_nn(model, X, Y, test_X, test_Y):
     classes = model[-1].out_features
     sample_count = X.size()[0]
     trained_confusion = torch.zeros(classes, classes).type(torch.int)
     validated_confusion = torch.zeros(classes, classes).type(torch.int)
+    tested_confusion = torch.zeros(classes, classes).type(torch.int)
     one_hots = torch.nn.functional.one_hot(torch.arange(0,classes)).type(torch.double)
     sample_indices = torch.arange(0,sample_count)
     grad_bias = [p.data.new_zeros(p.size()).requires_grad_(False).type(torch.double) for p in model.parameters()]
@@ -135,8 +139,10 @@ def train_nn(model, X, Y):
 
     trained_N = len(training_indices)
     reserved_N = len(reserved_indices)
+    tested_N = len(test_Y)
     trained_error = []
     validated_error = []
+    tested_error = []
 
     dWNorm = [ torch.empty(layer.weight.data.size()[0], 0) for layer in
                [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
@@ -205,6 +211,14 @@ def train_nn(model, X, Y):
             validated_hits = reserved_Y.eq(validated_labels).all(1).to(torch.int).sum()
             for i in range(len(reserved_indices)):
                 validated_confusion[reserved_Y[i].argmax().item()][validated_Y[i].argmax().item()] += 1
+        # Test predictions on test set if one has been supplied.
+        if test_X is not None and test_Y is not None:
+            with torch.no_grad():
+                tested_Y = model(test_X)
+                tested_labels = torch.stack([one_hots[y.argmax().item()] for y in tested_Y])
+                tested_hits = test_Y.eq(tested_labels).all(1).to(torch.int).sum()
+                for i in range(len(test_Y)):
+                    tested_confusion[test_Y[i].argmax().item()][tested_Y[i].argmax().item()] += 1
 
         # Report epoch results.
         training_accuracy = float(trained_hits) / float(trained_N)
@@ -219,12 +233,20 @@ def train_nn(model, X, Y):
         if args.debug:
             print_confusion_matrix(validated_confusion)
 
+        if test_X is not None and test_Y is not None:
+            tested_accuracy = float(tested_hits) / float(tested_N)
+            tested_error.append(1.0 - tested_accuracy)
+            print("TEST[{}]: {}/{} ({})".format(epoch, tested_hits, tested_N, tested_accuracy), file=sys.stderr)
+            if args.debug:
+                print_confusion_matrix(validated_confusion)
+
+
         # Calculate weight changes over the epoch.
         LW_j = [ layer.weight.data.clone().detach().requires_grad_(False) for layer in
                  [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
         weight_change(LW_i, LW_j, dWNorm, dTheta)
         if ((epoch + 1) % args.plot_every == 0):
-            plot_training_validation_accuracy(model, epoch, trained_error, validated_error)
+            plot_training_validation_accuracy(model, epoch, trained_error, validated_error, tested_error)
             plot_confusion_matrix(model, epoch, 'training', trained_confusion)
             plot_confusion_matrix(model, epoch, 'validation', validated_confusion)
             plot_weight_angle_changes(model, epoch, dTheta)
@@ -240,10 +262,14 @@ def train_nn(model, X, Y):
 def show_combined_plots(epoch):
     return
 
-def plot_training_validation_accuracy(model, epoch, trained_error, validated_error):
+def plot_training_validation_accuracy(model, epoch, trained_error, validated_error, tested_error):
     mplp.plot(list(range(len(trained_error))), trained_error, 'r-')
     mplp.plot(list(range(len(validated_error))), validated_error, 'b-')
-    mplp.legend(labels=('training', 'validation'), loc='upper right')
+    legend_labels=('training', 'validation')
+    if len(tested_error) != 0:
+        legend_labels += ('test',)
+        mplp.plot(list(range(len(tested_error))), validated_error, 'g-')
+    mplp.legend(labels=legend_labels, loc='upper right')
     mplp.xlabel('Training Epoch')
     mplp.ylabel('Classification Errors (%)')
     mplp.title('Model Accuracy over Time\n{}'.format(model_params_shorthand))
@@ -328,7 +354,8 @@ def test_nn(model, X, Y):
 
     test_accuracy = float(predicted_hits) / float(Y.size()[0])
     print("TEST: {}/{} ({})".format(predicted_hits, Y.size()[0], test_accuracy ), file=sys.stderr)
-    print_confusion_matrix(tested_confusion)
+    if args.debug:
+                 print_confusion_matrix(tested_confusion)
 
 def capture_hidden_outputs_hook(module, features_in, features_out, **kwargs):
     for y in features_out:
@@ -360,8 +387,17 @@ model_params_shorthand = '(i = {}, h = {}, o = {}, a={})'.format(layer_D[0], lay
 # Set loss function to be mean squared error with summation over each training batch.
 loss_fn = torch.nn.MSELoss(reduction='sum')
 
-# Load input (in ARFF format).
-X, Y, L = load_arff(args.arff)
+# Load training input (in ARFF format).
+if args.train_arff is not None:
+    X_train, Y_train, L_train = load_arff(args.train_arff)
+
+X_test = None
+Y_test = None
+L_test = None
+
+# Load testing input (in ARFF format).
+if args.test_arff is not None:
+    X_test, Y_test, L_test = load_arff(args.test_arff)
 
 # Build set of layers in order.
 layers = OrderedDict()
@@ -384,10 +420,10 @@ print(model, file=sys.stderr)
 # Train or test, depending on user spec.
 # @TODO: Save trained model for future loading. Otherwise, have to train before testing.
 if args.train:
-    train_nn(model, X, Y)
+    train_nn(model, X_train, Y_train, X_test, Y_test)
     with open(os.path.join(args.workspace_dir, args.model_file), 'wb') as fout:
         pickle.dump(model.state_dict(), fout)
 elif args.test:
     with open(os.path.join(args.workspace_dir, args.model_file), 'rb') as fin:
         model.load_state_dict(pickle.load(fin))
-    test_nn(model, X, Y)
+    test_nn(model, X_test, Y_test)
