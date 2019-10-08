@@ -178,7 +178,7 @@ def train_nn(model, X, Y):
             # Determine the count of hits and misses and update the training confusion matrix.
             trained_hits += batch_Y.eq(trained_labels).all(1).to(torch.int).sum()
             for i in range(len(batch_indices)):
-                trained_confusion[batch_Y[i].argmax().item()][trained_Y[i].argmax().item()] +=1
+                trained_confusion[batch_Y[i].argmax().item()][trained_Y[i].argmax().item()] += 1
 
             # Calculate losses for back-propagation.
             loss = loss_fn(trained_Y, batch_Y)
@@ -202,7 +202,7 @@ def train_nn(model, X, Y):
             validated_labels = torch.stack([one_hots[y.argmax().item()] for y in validated_Y])
             validated_hits = reserved_Y.eq(validated_labels).all(1).to(torch.int).sum()
             for i in range(len(reserved_indices)):
-                validated_confusion[reserved_Y[i].argmax().item()][validated_Y[i].argmax().item()] +=1
+                validated_confusion[reserved_Y[i].argmax().item()][validated_Y[i].argmax().item()] += 1
 
         # Report epoch results.
         training_accuracy = float(trained_hits) / float(trained_N)
