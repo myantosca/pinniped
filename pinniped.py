@@ -366,6 +366,8 @@ Main
 
 args = parser.parse_args()
 
+os.makedirs(args.workspace_dir, mode=0o770, exist_ok=True)
+
 # Get layer dims.
 layer_D = [ int(D) for D in args.layer_dims.split(",") ]
 
@@ -376,7 +378,7 @@ if len(layer_D) < 2:
 activation_unit = activation_units[args.activation_unit]
 
 # Create shorthand string to describe model params (useful in plots).
-model_params_shorthand = '(i = {}, h = {}, o = {}, a={})'.format(layer_D[0], layer_D[1:-1], layer_D[-1], args.activation_unit)
+model_params_shorthand = '(i = {}, h = {}, o = {}, a={}, lr={}, bs={}, α={})'.format(layer_D[0], layer_D[1:-1], layer_D[-1], args.activation_unit, args.learning_rate, args.batch_size, args.momentum)
 
 # Set loss function to be mean squared error with summation over each training batch.
 loss_fn = torch.nn.MSELoss(reduction='sum')
