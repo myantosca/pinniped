@@ -264,7 +264,7 @@ def plot_training_validation_accuracy(model, epoch, trained_error, validated_err
     legend_labels=('training', 'validation')
     if len(tested_error) != 0:
         legend_labels += ('test',)
-        mplp.plot(list(range(len(tested_error))), validated_error, 'g-')
+        mplp.plot(list(range(len(tested_error))), tested_error, 'g-')
     mplp.legend(labels=legend_labels, loc='upper right')
     mplp.xlabel('Training Epoch')
     mplp.ylabel('Classification Errors (%)')
