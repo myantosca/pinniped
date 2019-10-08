@@ -349,7 +349,7 @@ def test_nn(model, X, Y):
     test_accuracy = float(predicted_hits) / float(Y.size()[0])
     print("TEST: {}/{} ({})".format(predicted_hits, Y.size()[0], test_accuracy ), file=sys.stderr)
     if args.debug:
-                 print_confusion_matrix(tested_confusion)
+        print_confusion_matrix(tested_confusion)
 
 def capture_hidden_outputs_hook(module, features_in, features_out, **kwargs):
     for y in features_out:
