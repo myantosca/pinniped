@@ -61,7 +61,6 @@ def load_arff(arff_fname):
     X, Y = zip(*[ (XY[0:-1], XY[-1].decode('UTF-8')) for XY in [ tuple(nd) for nd in arff_data ] ])
     L = OrderedDict()
     classes = len(arff_meta['target'][1])
-    one_hots = torch.nn.functional.one_hot(torch.arange(0,classes)).type(torch.double)
     for c in range(classes):
         y = arff_meta['target'][1][c]
         L[y] = one_hots[c]
@@ -99,7 +98,6 @@ def train_nn(model, X, Y, test_X, test_Y):
     trained_confusion = torch.zeros(classes, classes).type(torch.int)
     validated_confusion = torch.zeros(classes, classes).type(torch.int)
     tested_confusion = torch.zeros(classes, classes).type(torch.int)
-    one_hots = torch.nn.functional.one_hot(torch.arange(0,classes)).type(torch.double)
     sample_indices = torch.arange(0,sample_count)
     grad_bias = [p.data.new_zeros(p.size()).requires_grad_(False).type(torch.double) for p in model.parameters()]
 
@@ -131,12 +129,17 @@ def train_nn(model, X, Y, test_X, test_Y):
 
     optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=args.momentum)
 
+
     trained_N = len(training_indices)
     reserved_N = len(reserved_indices)
     tested_N = len(test_Y)
     trained_error = []
     validated_error = []
     tested_error = []
+    indices = {}
+
+    hits = {}
+    accuracy = {}
 
     dWNorm = [ torch.empty(layer.weight.data.size()[0], 0) for layer in
                [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
@@ -157,7 +160,9 @@ def train_nn(model, X, Y, test_X, test_Y):
 
         batch = 0
         offset = 0
-        trained_hits = 0
+        training_X = X.index_select(0, training_indices)
+        training_Y = Y.index_select(0, training_indices)
+
         while offset < trained_N:
             # Zero out gradients at the start of each batch.
             if args.autograd_backprop:
@@ -166,21 +171,13 @@ def train_nn(model, X, Y, test_X, test_Y):
                 with torch.no_grad():
                     model.zero_grad()
 
-            # Map training set input and target to the current batch based on pre-computed index order.
+            # Map training set input and target to the current batch based on pre-permuted index order.
             batch_indices = training_indices[offset:offset+args.batch_size]
-            batch_N = len(batch_indices)
-            offset += args.batch_size
             batch_X = X.index_select(0, batch_indices)
             batch_Y = Y.index_select(0, batch_indices)
 
             # Train the model on the input X
             trained_Y = model(batch_X)
-            # Make label predictions from argmax of the output.
-            trained_labels = torch.stack([one_hots[y.argmax().item()] for y in trained_Y ])
-            # Determine the count of hits and misses and update the training confusion matrix.
-            trained_hits += batch_Y.eq(trained_labels).all(1).to(torch.int).sum()
-            for i in range(len(batch_indices)):
-                trained_confusion[batch_Y[i].argmax().item()][trained_Y[i].argmax().item()] += 1
 
             # Calculate losses for back-propagation.
             loss = loss_fn(trained_Y, batch_Y)
@@ -197,31 +194,22 @@ def train_nn(model, X, Y, test_X, test_Y):
                         grad_bias[b_p].copy_(args.learning_rate * (1 - args.momentum) * p.grad + args.momentum * grad_bias[b_p])
                         p -= grad_bias[b_p]
                         b_p += 1
+            offset += args.batch_size
 
+        # Test predictions on training set at the end of the epoch. Gains or losses between batches within an epoch are not captured.
+        trained_hits, trained_accuracy = test_batch(model, training_X, training_Y, trained_confusion)
         # Test predictions on validation set.
-        with torch.no_grad():
-            validated_Y = model(reserved_X)
-            validated_labels = torch.stack([one_hots[y.argmax().item()] for y in validated_Y])
-            validated_hits = reserved_Y.eq(validated_labels).all(1).to(torch.int).sum()
-            for i in range(len(reserved_indices)):
-                validated_confusion[reserved_Y[i].argmax().item()][validated_Y[i].argmax().item()] += 1
+        validated_hits, validated_accuracy = test_batch(model, reserved_X, reserved_Y, validated_confusion)
         # Test predictions on test set if one has been supplied.
         if test_X is not None and test_Y is not None:
-            with torch.no_grad():
-                tested_Y = model(test_X)
-                tested_labels = torch.stack([one_hots[y.argmax().item()] for y in tested_Y])
-                tested_hits = test_Y.eq(tested_labels).all(1).to(torch.int).sum()
-                for i in range(len(test_Y)):
-                    tested_confusion[test_Y[i].argmax().item()][tested_Y[i].argmax().item()] += 1
+            tested_hits, tested_accuracy = test_batch(model, test_X, test_Y, tested_confusion)
 
         # Report epoch results.
-        training_accuracy = float(trained_hits) / float(trained_N)
-        trained_error.append(1.0 - training_accuracy)
-        print("TRAIN[{}]: {}/{} ({})".format(epoch, trained_hits, trained_N, training_accuracy), file=sys.stderr)
+        trained_error.append(1.0 - trained_accuracy)
+        print("TRAIN[{}]: {}/{} ({})".format(epoch, trained_hits, trained_N, trained_accuracy), file=sys.stderr)
         if args.debug:
             print_confusion_matrix(trained_confusion)
 
-        validated_accuracy = float(validated_hits) / float(reserved_N)
         validated_error.append(1.0 - validated_accuracy)
         print("VALID[{}]: {}/{} ({})".format(epoch, validated_hits, reserved_N, validated_accuracy), file=sys.stderr)
         if args.debug:
@@ -332,26 +320,24 @@ def plot_activation_heatmap(model, epoch, activations):
         mplp.savefig(os.path.join(args.workspace_dir, 'activations-{}-{}.png'.format(layer, epoch)))
         mplp.close()
 
+def test_batch(model, X_in, Y_tru, M_confusion):
+    with torch.no_grad():
+        Y_out = model(X_in)
+        Y_lbl = torch.stack([one_hots[y.argmax().item()] for y in Y_out])
+        hits = Y_tru.eq(Y_lbl).all(1).to(torch.int).sum()
+        for i in range(Y_tru.size()[0]):
+            M_confusion[Y_tru[i].argmax().item()][Y_out[i].argmax().item()] += 1
+    return (hits, float(hits) / float(Y_tru.size()[0]))
+
 """
 Test NN.
 """
 def test_nn(model, X, Y):
-    classes = model[-1].out_features
-    tested_confusion = torch.zeros(classes, classes)
-    one_hots = torch.nn.functional.one_hot(torch.arange(0,classes)).type(torch.double)
-    passed = 0
-    failed = 0
-    with torch.no_grad():
-        predicted_Y = model(X)
-        predicted_labels = torch.stack([one_hots[y.argmax().item()] for y in predicted_Y])
-        predicted_hits = Y.eq(predicted_labels).all(1).to(torch.int).sum()
-        for i in range(Y.size()[0]):
-            tested_confusion[Y[i].argmax().item()][predicted_Y[i].argmax().item()] +=1
-
-    test_accuracy = float(predicted_hits) / float(Y.size()[0])
-    print("TEST: {}/{} ({})".format(predicted_hits, Y.size()[0], test_accuracy ), file=sys.stderr)
+    M_confusion = torch.zeros(model[-1].out_features, model[-1].out_features)
+    hits, accuracy = test_batch(model, X, Y, M_confusion)
+    print("TEST: {}/{} ({})".format(hits, Y.size()[0], accuracy ), file=sys.stderr)
     if args.debug:
-        print_confusion_matrix(tested_confusion)
+        print_confusion_matrix(M_confusion)
 
 def capture_hidden_outputs_hook(module, features_in, features_out, **kwargs):
     for y in features_out:
@@ -385,18 +371,6 @@ model_params_shorthand = '(i = {}, h = {}, o = {}, a={}, lr={}, bs={}, α={})'.f
 # Set loss function to be mean squared error with summation over each training batch.
 loss_fn = torch.nn.MSELoss(reduction='sum')
 
-# Load training input (in ARFF format).
-if args.train_arff is not None:
-    X_train, Y_train, L_train = load_arff(args.train_arff)
-
-X_test = None
-Y_test = None
-L_test = None
-
-# Load testing input (in ARFF format).
-if args.test_arff is not None:
-    X_test, Y_test, L_test = load_arff(args.test_arff)
-
 # Build set of layers in order.
 layers = OrderedDict()
 activations = OrderedDict()
@@ -412,6 +386,20 @@ for i in range(len(layer_D)-1):
             layers[activation_layer_name].register_forward_hook(functools.partial(capture_hidden_outputs_hook, name=activation_layer_name))
 
 model = torch.nn.Sequential(layers)
+one_hots = torch.nn.functional.one_hot(torch.arange(0,model[-1].out_features)).type(torch.double)
+
+# Load training input (in ARFF format).
+if args.train_arff is not None:
+    X_train, Y_train, L_train = load_arff(args.train_arff)
+
+X_test = None
+Y_test = None
+L_test = None
+
+# Load testing input (in ARFF format).
+if args.test_arff is not None:
+    X_test, Y_test, L_test = load_arff(args.test_arff)
+
 # Create NN model.
 print(model, file=sys.stderr)
 
@@ -421,7 +409,7 @@ if args.train_arff is not None:
     train_nn(model, X_train, Y_train, X_test, Y_test)
     with open(os.path.join(args.workspace_dir, args.model_file), 'wb') as fout:
         pickle.dump(model.state_dict(), fout)
-elif args.test is not None:
+elif args.test_arff is not None:
     with open(os.path.join(args.workspace_dir, args.model_file), 'rb') as fin:
         model.load_state_dict(pickle.load(fin))
     test_nn(model, X_test, Y_test)
