@@ -242,6 +242,7 @@ def train_nn(model, X, Y, test_X, test_Y):
         # Reset confusion matrices for next epoch.
         trained_confusion.fill_(0)
         validated_confusion.fill_(0)
+        tested_confusion.fill_(0)
 
 def show_combined_plots(epoch):
     return
