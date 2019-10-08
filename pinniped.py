@@ -256,9 +256,9 @@ def plot_training_validation_accuracy(model, epoch, trained_error, validated_err
         mplp.plot(list(range(len(tested_error))), tested_error, 'g-')
     mplp.legend(labels=legend_labels, loc='upper right')
     mplp.xlabel('Training Epoch')
-    mplp.ylabel('Classification Errors (%)')
-    mplp.title('Model Accuracy over Time\n{}'.format(model_params_shorthand))
-    mplp.savefig(os.path.join(args.workspace_dir, 'accuracy-{}.png'.format(epoch)))
+    mplp.ylabel('Classification Error')
+    mplp.title('Model Error over Time\n{}'.format(model_params_shorthand))
+    mplp.savefig(os.path.join(args.workspace_dir, 'error-{}.png'.format(epoch)))
     mplp.close()
 
 def plot_weight_angle_changes(model, epoch, dTheta):
