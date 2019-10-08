@@ -12,6 +12,7 @@ matplotlib.use('cairo')
 import matplotlib.pyplot as mplp
 import matplotlib.colors as mplc
 import functools
+import os.path
 
 """
 Command line arguments
@@ -23,7 +24,7 @@ mode = parser.add_mutually_exclusive_group()
 mode.add_argument('--test', action='store_true')
 mode.add_argument('--train', action='store_true')
 
-parser.add_argument('--model-file', type=str, default='./model.nn')
+parser.add_argument('--model-file', type=str, default='model.nn')
 parser.add_argument('--epochs', type=int, default=1)
 parser.add_argument('--batch-size', type=int, default=1)
 parser.add_argument('--learning-rate', type=float, default=0.5)
@@ -41,6 +42,7 @@ parser.add_argument('--interactive', action='store_true')
 parser.add_argument('--debug', action='store_true')
 parser.add_argument('--activation-bins', type=int, default=20)
 parser.add_argument('--plot-every', type=int, default=1)
+parser.add_argument('--workspace-dir', type=str, default='.')
 
 activation_units = { 'sigmoid' : torch.nn.Sigmoid, 'tanh' : torch.nn.Tanh, 'relu' : torch.nn.ReLU }
 
@@ -245,7 +247,7 @@ def plot_training_validation_accuracy(model, epoch, trained_error, validated_err
     mplp.xlabel('Training Epoch')
     mplp.ylabel('Classification Errors (%)')
     mplp.title('Model Accuracy over Time\n{}'.format(model_params_shorthand))
-    mplp.savefig("accuracy-{}.png".format(epoch))
+    mplp.savefig(os.path.join(args.workspace_dir, 'accuracy-{}.png'.format(epoch)))
     mplp.close()
 
 def plot_weight_angle_changes(model, epoch, dTheta):
@@ -257,7 +259,7 @@ def plot_weight_angle_changes(model, epoch, dTheta):
         mplp.xlabel('Training Epoch')
         mplp.ylabel('{} Node'.format(layers[i]))
         mplp.title('Weight Vector Angle Changes Per {} Node Over Time\n{}'.format(layers[i], model_params_shorthand))
-        mplp.savefig("weight-angle-changes-{}-{}.png".format(layers[i], epoch))
+        mplp.savefig(os.path.join(args.workspace_dir, 'weight-angle-changes-{}-{}.png'.format(layers[i], epoch)))
         mplp.close()
         i+=1
 
@@ -270,7 +272,7 @@ def plot_weight_magnitude_changes(model, epoch, dWNorm):
         mplp.xlabel('Training Epoch')
         mplp.ylabel('{} Node'.format(layers[i]))
         mplp.title('Weight Vector Norm Changes Per {} Node Over Time\n{}'.format(layers[i], model_params_shorthand))
-        mplp.savefig("weight-magnitude-changes-{}-{}.png".format(layers[i], epoch))
+        mplp.savefig(os.path.join(args.workspace_dir, 'weight-magnitude-changes-{}-{}.png'.format(layers[i], epoch)))
         mplp.close()
         i += 1
 
@@ -280,7 +282,7 @@ def plot_confusion_matrix(model, epoch, which, confusion_matrix):
     mplp.xlabel('Predicted Class')
     mplp.ylabel('Target Class')
     mplp.title('{} Set Confusion Matrix @ t = {}\n{}'.format(which.capitalize(), epoch, model_params_shorthand))
-    mplp.savefig("confusion-matrix-{}-{}.png".format(which, epoch))
+    mplp.savefig(os.path.join(args.workspace_dir, 'confusion-matrix-{}-{}.png'.format(which, epoch)))
     mplp.close()
 
 def print_confusion_matrix(M):
@@ -305,7 +307,7 @@ def plot_activation_heatmap(model, epoch, activations):
         bin_ticks = [x for x in range(args.activation_bins + 1) if (x % (args.activation_bins/10)) == 0]
         mplp.xticks(bin_ticks, [ b / args.activation_bins for b in bin_ticks])
         mplp.title('Non-linear Activations Per {} Node\n{}'.format(layer, model_params_shorthand))
-        mplp.savefig("activations-{}-{}.png".format(layer, epoch))
+        mplp.savefig(os.path.join(args.workspace_dir, 'activations-{}-{}.png'.format(layer, epoch)))
         mplp.close()
 
 """
@@ -383,9 +385,9 @@ print(model, file=sys.stderr)
 # @TODO: Save trained model for future loading. Otherwise, have to train before testing.
 if args.train:
     train_nn(model, X, Y)
-    with open(args.model_file, 'wb') as fout:
+    with open(os.path.join(args.workspace_dir, args.model_file), 'wb') as fout:
         pickle.dump(model.state_dict(), fout)
 elif args.test:
-    with open(args.model_file, 'rb') as fin:
+    with open(os.path.join(args.workspace_dir, args.model_file), 'rb') as fin:
         model.load_state_dict(pickle.load(fin))
     test_nn(model, X, Y)
