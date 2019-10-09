@@ -400,7 +400,7 @@ for i in range(len(layer_D)-1):
         activation_layer_name = 'A{}'.format(i)
         layers[activation_layer_name] = activation_unit().to(torch.double)
         if args.train_arff is not None:
-            activations[activation_layer_name] = torch.zeros(layer_D[i+1], args.activation_bins).to(torch.double)
+            activations[activation_layer_name] = torch.zeros(layer_D[i+1], args.activation_bins).to(torch.double).requires_grad_(False)
             layers[activation_layer_name].register_forward_hook(functools.partial(capture_hidden_outputs_hook, name=activation_layer_name))
 
 model = torch.nn.Sequential(layers)
