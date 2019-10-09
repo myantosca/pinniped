@@ -39,6 +39,7 @@ parser.add_argument('--interactive', action='store_true')
 parser.add_argument('--debug', action='store_true')
 parser.add_argument('--activation-bins', type=int, default=20)
 parser.add_argument('--plot-every', type=int, default=1)
+parser.add_argument('--plot-confusion-every', type=int, default=1)
 parser.add_argument('--workspace-dir', type=str, default='.')
 parser.add_argument('--save-every', type=int, default=1)
 parser.add_argument('--profile', action='store_true')
@@ -230,12 +231,14 @@ def train_nn(model, X, Y, test_X, test_Y):
         LW_j = [ layer.weight.data.clone().detach().requires_grad_(False) for layer in
                  [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
         weight_change(LW_i, LW_j, dWNorm, dTheta)
-        if ((epoch + 1) % args.plot_every == 0) or (epoch + 1 == args.epochs):
-            plot_training_validation_accuracy(model, epoch, trained_error, validated_error, tested_error)
+        if ((epoch + 1) % args.plot_every == 0) or ((epoch + 1) % args.plot_confusion_every == 0) or (epoch + 1 == args.epochs):
             plot_confusion_matrix(model, epoch, 'training', trained_confusion)
             plot_confusion_matrix(model, epoch, 'validation', validated_confusion)
             if args.test_arff is not None:
                 plot_confusion_matrix(model, epoch, 'test', tested_confusion)
+
+        if ((epoch + 1) % args.plot_every == 0) or (epoch + 1 == args.epochs):
+            plot_training_validation_accuracy(model, epoch, trained_error, validated_error, tested_error)
             plot_weight_angle_changes(model, epoch, dTheta)
             plot_weight_magnitude_changes(model, epoch, dWNorm)
             plot_activation_heatmap(model, epoch, activations)
