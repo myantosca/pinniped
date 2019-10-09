@@ -41,6 +41,7 @@ parser.add_argument('--activation-bins', type=int, default=20)
 parser.add_argument('--plot-every', type=int, default=1)
 parser.add_argument('--workspace-dir', type=str, default='.')
 parser.add_argument('--save-every', type=int, default=1)
+parser.add_argument('--profile', action='store_true')
 
 activation_units = { 'sigmoid' : torch.nn.Sigmoid, 'tanh' : torch.nn.Tanh, 'relu' : torch.nn.ReLU }
 
@@ -362,6 +363,12 @@ Main
 
 args = parser.parse_args()
 
+if args.profile:
+    import cProfile, pstats, io, pstats
+    pr = cProfile.Profile()
+    pr.enable()
+
+
 os.makedirs(args.workspace_dir, mode=0o770, exist_ok=True)
 
 # Get layer dims.
@@ -421,3 +428,10 @@ elif args.test_arff is not None:
     with open(os.path.join(args.workspace_dir, args.model_file), 'rb') as fin:
         model.load_state_dict(pickle.load(fin))
     test_nn(model, X_test, Y_test)
+
+if args.profile:
+    pr.disable()
+    s = io.StringIO()
+    ps = pstats.Stats(pr, stream=s).sort_stats('tottime')
+    ps.print_stats()
+    print(s.getvalue())
