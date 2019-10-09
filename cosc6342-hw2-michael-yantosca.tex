@@ -219,7 +219,24 @@
     additional models are saved nor any plots made. The latter would be a worthwhile enhancement, however.
   }
 }
-\section{Results}{
+\section{Experiments}{
+  \subsection{Parameters}{
+    The experiments were varied along the following parameters:
+    \begin{itemize}
+    \item{nodes per hidden layer, $N_H \in \{1, 4, 16, 64\}$}
+    \item{learning rate, $\lambda \in \{0.1, 0.01, 0.001\}$}
+    \item{batch size, $b \in \{1, 40, 80, 160\}$}
+    \item{momentum, $\alpha \in \{0.0, 0.1, 0.5, 0.9, 1.0\}$}
+    \end{itemize}
+    All experiments ran training with SGD for 256 epochs, reserving every fourth sample for validation.
+    Thus, the training set size was 160, the validation set size 54, and the test set size 1,896.
+    The experiments did not follow a complete test matrix but rather varied along one parameter axis
+    with respect to the following baseline: $N_H = 64$, $\lambda = 0.001$, $b = 160$, $\alpha = 0.0$.
+    Each set of parameters was tested 3 times to provide some coverage of random variation without
+    making the experimentation run too long since PINNIPED has not been optimized for performance.
+  }
+  \subsection{Results}{
+  }
 }
 \section{Conclusions}{
 }
