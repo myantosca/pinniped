@@ -57,11 +57,11 @@ Load training data from ARFF input file.
 """
 def load_arff(arff_fname):
     arff_data, arff_meta = scipy.io.arff.loadarff(arff_fname)
+    classes = len(arff_meta['target'][1])
 
     # Convert ARFF to torch tensors.
     X, Y = zip(*[ (XY[0:-1], XY[-1].decode('UTF-8')) for XY in [ tuple(nd) for nd in arff_data ] ])
     L = OrderedDict()
-    classes = len(arff_meta['target'][1])
     # This mapping is a precaution in case the class labels are not a monotonic sequence corresponding to the indices.
     for c in range(classes):
         y = arff_meta['target'][1][c]
