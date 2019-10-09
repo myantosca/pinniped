@@ -1,5 +1,6 @@
 \documentclass[10pt,epsf]{article}
 \usepackage{amssymb,amsmath,amsthm,amsfonts,mathrsfs,color}
+\usepackage{mathtools,commath}
 \usepackage{epsfig}
 \usepackage{latexsym}
 \usepackage{verbatim}
@@ -101,7 +102,7 @@
   network constructed solely uses backpropagation and stochastic gradient descent for training.
 }
 
-\section{Implementation}{
+\section{Design and Implementation}{
   The complexities of splitting continuous audio data into phonemic frames is glossed
   over in the interest of time. The training and test sets come from the University
   of East Anglia time series classification archive\autocite{ueamvtsca}\autocite{Phoneme},
@@ -110,14 +111,14 @@
   of 1,024 amplitude values followed by a numeric phoneme label.
 
   Notably, the Phoneme challenge currently reports a maximum achieved accuracy of 30.28\%.
-  This may be due to the fact that the training set (214 examples) is an order of magnitude smaller than
+  This may be due to the fact that the training set (214 examples) is nearly an order of magnitude smaller than
   the test set (1,896 examples), and data-hungry techniques such as neural networks are likely to fare
   poorly in the context of the challenge. However, the uniformity of the data layout provided in easily
-  digestible ARFFs\autocite{scipyloadarff} provided present a manageable environment for an initial foray in
+  digestible ARFFs\autocite{scipyloadarff} present a manageable environment for an initial foray in
   evaluating the usefulness of training a neural network solely on amplitude values with only
   minor, inexpensive preprocessing.
 
-  The python program written to execute the experiments is dubbed the
+  The Python program written to execute the experiments is dubbed the
   Parameterized Interactive Neural Network Iteratively Plotting Experimental Decisions, or PINNIPED for short.
   PINNIPED is built on PyTorch\autocite{torchnnref}\autocite{torchnntut},
   leveraging the framework's autograd feature, and can operate in either training mode or test mode.
@@ -125,17 +126,98 @@
   including non-linear activation, learning rate, learning momentum, batch size, training epochs,
   number of hidden layers and nodes within each layer individually, and input test or training set ARFFs.
 
-  The periodically generated plots created through the matplotlib\autocite{mplpplot} library include
-  the following:
-  \begin{itemize}
-  \item{a plot of training and validation accuracy over time (epochs)}
-  \item{per-layer heatmaps of weight vector changes by angle and norm per node over time (epochs)}
-  \item{per-layer heatmaps of non-linear activation counts of nodes against uniform bins}
-  \item{heatmaps of training and validation confusion matrices}
-  \end{itemize}
-
   Users are encouraged to review the included \texttt{README.md} or the program's help message
   for details on usage.
+
+  \subsection{Neural Network Layout}{
+    The neural network composed by user-specification at the command line is a simple feed-forward
+    network with backpropagation\autocite[284-296]{DHS}. The counts of nodes per layer is specified
+    through the \texttt{--layer-dims} command-line argument as a comma-separated list of integer values.
+    As such, the number of hidden layers permitted is arbitrary, but this work focuses on the single
+    hidden-layer case. At least 2 layers, i.e., input and output, must be specified. The layer itself
+    is implemented as a PyTorch Linear module.
+
+    The same non-linear activation function is applied to the output of all hidden layers. The user
+    may choose between the sigmoid, hyperbolic tangent, or rectified linear unit (ReLU). The non-linear
+    transformation is implemented through the corresponding Pytorch module.
+  }
+
+  \subsection{Training}{
+    Training may be parameterized on the command line according to a few different typical regimens.
+    For the purpose of validation, the user may reserve either the last fraction of the training samples
+    (e.g., the last quarter) or samples taken at regular intervals (e.g., every fourth sample).
+    PINNIPED supports both batch backpropagation and stochastic gradient descent (SGD), but it does not
+    support online training.
+
+    Under SGD, the order of the training samples is permuted before training starts\autocite{torchshuffle},
+    and reservation is done \emph{after} this initial permutation. No permutation of sample order is done
+    if not specified by the user. The division betwen training and validation sets holds for the duration
+    of training, but SGD also permutes the training set sample order at the start of each epoch so that
+    each training sample is seen once per epoch but in a potentially different order each time.
+    The validation set order is not permuted after reservation since no learning is taking place during
+    validation, i.e., the PyTorch autograd mechanism is turned off for testing.
+
+    Batching can be done in batches of 1 up to the total training set size. Specifying a number greater
+    than the training set size will default to the training set size. If the speificied batch size does
+    not divide the training set evenly, the last batch will be smaller than this specification. Users who
+    require exact equality in size for all batches must either truncate the training set or augment it
+    with additional samples if the set is not evenly divisible by the batch size.
+
+    In order to make it easier to plot training, validation, and test accuracy in
+    one graph, the test set may be passed through as a sort of second validation set. With intermediate
+    plotting turned on, this will generate the performance of the model at every training stage against
+    all the sets. This is not recommended for development testing since it can overfit to the
+    test set and furthermore violates the best practices of test-set blinding that have been established
+    in the field of machine learning so as to allow each model to be judged on its own merits and not the furtive
+    hand of its inventor. However, the option is left as a convenience for illustrative and didactic purposes.
+  }
+  \subsection{Artifacts}{
+    A number of artifacts can be generated with user-specified regularity, namely plots of performance
+    and evolution along with intermediate model states.
+
+    Using matplotlib\autocite{mplpplot} library for generation, the plots include the following:
+    \begin{itemize}
+    \item{a plot of training, validation, and test accuracy over time (epochs)}
+    \item{per-layer heatmaps of weight vector changes by angle and norm per node over time (epochs)}
+    \item{per-layer heatmaps of non-linear activation counts of nodes against uniform bins}
+    \item{heatmaps of training, validation, and test confusion matrices}
+    \end{itemize}
+
+    All plots are rendered in PNG format. Heatmaps are generated as \texttt{pcolormesh}\autocite{mplppcolormesh}
+    rather than \texttt{imshow}\autocite{mplpimshow} plots because the latter do not visually scale as well.
+    The color values used by the heatmaps belong to the 'hot' scale\autocite{mplpcolorbar}, which seemed to be the most visually intuitive representation in all the use cases above.
+
+    The weight angle change graph uses the standard formula for angle difference between two vectors\autocite[335]{Lay},
+    \begin{align*}
+      \mxn{u} \cdot \mxn{v} &= \norm{\mxn{u}} \norm{\mxn{v}} \cos \theta \\
+      \theta &= \arccos \bigg[ \frac{\mxn{u} \cdot \mxn{v}}{ \norm{\mxn{u}} \norm{\mxn{v}} } \bigg]
+    \end{align*}
+    where $\theta$ is the angle between the two vectors $\mxn{u}$ and $\mxn{v}$. Because of documented
+    concerns over precision in PyTorch\autocite{torchbug8069}, additional precautions were taken in
+    the boundary cases close to the extrema of the $\arccos$ range. Additionally, colinear weight vectors,
+    i.e., vectors with an angle of 0 radians between them, may not have the same magnitude, hence, the
+    change in norm plot. If either vector had zero length, the change in angle was clamped to zero on
+    the premise that zero vectors are colinear with all vectors, so to speak.
+
+    The intermediate model states are saved as Pickle serializations of the PyTorch model state dictionaries.
+    This binary format for Python object serialization can be imported for test-only runs of the program.
+    The intermediate activation values are captured by a forward hook\autocite{torchactivations}
+    which increments a tensor\autocite{torchtensors} of bins. Because none of the modules themselves
+    have unique name properties, currying\autocite{functools} was employed to associate a common hook
+    wrapped in a partial lambda to avoid code duplication.
+
+    If the user turns on debug output, most of the actual values used to generate the plots will be printed
+    to \texttt{stderr}. The confusion matrices are printed in this mode with a sparse text layout blanking
+    out cells holding zeros for legibility as well as prefixing hits with a plus (+) and misses with a minus (-).
+  }
+  \subsection{Testing}{
+    PINNIPED can run in a test-only mode, which is useful for evaluating a model against multiple test sets
+    and avoiding the time penalty of repeating the same training multiple times. Of course, it should be noted
+    that SGD training runs are not guaranteed to be perfectly reproducible.
+
+    The test-only mode does not yield any artifacts other than the output to stderr of the accuracy. No
+    additional models are saved nor any plots made. The latter would be a worthwhile enhancement, however.
+  }
 }
 \section{Results}{
 }
