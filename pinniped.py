@@ -384,7 +384,13 @@ if len(layer_D) < 2:
 activation_unit = activation_units[args.activation_unit]
 
 # Create shorthand string to describe model params (useful in plots).
-model_params_shorthand = '(i = {}, h = {}, o = {}, a={}, lr={}, bs={}, α={})'.format(layer_D[0], layer_D[1:-1], layer_D[-1], args.activation_unit, args.learning_rate, args.batch_size, args.momentum)
+model_params_shorthand = '(i = {}, h = {}, o = {}, a={}, lr={}, bs={}, α={})'.format(layer_D[0],
+                                                                                     layer_D[1:-1],
+                                                                                     layer_D[-1],
+                                                                                     args.activation_unit,
+                                                                                     args.learning_rate,
+                                                                                     args.batch_size,
+                                                                                     args.momentum)
 
 # Set loss function to be mean squared error with summation over each training batch.
 loss_fn = torch.nn.MSELoss(reduction='sum')
@@ -400,8 +406,10 @@ for i in range(len(layer_D)-1):
         activation_layer_name = 'A{}'.format(i)
         layers[activation_layer_name] = activation_unit().to(torch.double)
         if args.train_arff is not None:
-            activations[activation_layer_name] = torch.zeros(layer_D[i+1], args.activation_bins).to(torch.double).requires_grad_(False)
-            layers[activation_layer_name].register_forward_hook(functools.partial(capture_hidden_outputs_hook, name=activation_layer_name))
+            activations[activation_layer_name] = torch.zeros(
+                layer_D[i+1], args.activation_bins).to(torch.double).requires_grad_(False)
+            layers[activation_layer_name].register_forward_hook(functools.partial(capture_hidden_outputs_hook,
+                                                                                  name=activation_layer_name))
 
 model = torch.nn.Sequential(layers)
 one_hots = torch.nn.functional.one_hot(torch.arange(0,model[-1].out_features)).type(torch.double)
