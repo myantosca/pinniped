@@ -74,8 +74,8 @@ def load_arff(arff_fname):
 
 def weight_change(W_i, W_j, dWNorm, dTheta):
     for layer in range(len(W_j)):
-        dwnorm = torch.zeros(W_j[layer].size()[0], 1)
-        dtheta = torch.zeros(W_j[layer].size()[0], 1)
+        dwnorm = torch.zeros(W_j[layer].size()[0], 1).to(torch.double)
+        dtheta = torch.zeros(W_j[layer].size()[0], 1).to(torch.double)
         for node in range(W_j[layer].size()[0]):
             dwnorm[node] = torch.norm(W_j[layer][node].sub(W_i[layer][node])).item()
             dtheta[node] = d_theta(W_i[layer][node],W_j[layer][node])
@@ -145,9 +145,9 @@ def train_nn(model, X, Y, test_X, test_Y):
     hits = {}
     accuracy = {}
 
-    dWNorm = [ torch.empty(layer.weight.data.size()[0], 0) for layer in
+    dWNorm = [ torch.empty(layer.weight.data.size()[0], 0).to(torch.double) for layer in
                [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
-    dTheta = [ torch.empty(layer.weight.data.size()[0], 0) for layer in
+    dTheta = [ torch.empty(layer.weight.data.size()[0], 0).to(torch.double) for layer in
                [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
 
     for epoch in range(args.epochs):
@@ -156,7 +156,7 @@ def train_nn(model, X, Y, test_X, test_Y):
             training_indices = torch.stack([training_indices[i] for i in torch.randperm(trained_N)])
         passed = 0
         failed = 0
-        LW_i = [ layer.weight.data.clone().detach().requires_grad_(False) for layer in
+        LW_i = [ layer.weight.data.clone().detach().requires_grad_(False).to(torch.double) for layer in
                  [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
         # Permute the order of the data for stochastic batch descent.
         reserved_X = X.index_select(0, reserved_indices)
@@ -228,7 +228,7 @@ def train_nn(model, X, Y, test_X, test_Y):
 
 
         # Calculate weight changes over the epoch.
-        LW_j = [ layer.weight.data.clone().detach().requires_grad_(False) for layer in
+        LW_j = [ layer.weight.data.clone().detach().requires_grad_(False).to(torch.double) for layer in
                  [ layer for layer in model.children() if type(layer) is torch.nn.Linear ] ]
         weight_change(LW_i, LW_j, dWNorm, dTheta)
         if ((epoch + 1) % args.plot_every == 0) or ((epoch + 1) % args.plot_confusion_every == 0) or (epoch + 1 == args.epochs):
