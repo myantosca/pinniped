@@ -1,4 +1,5 @@
 \documentclass[10pt,epsf]{article}
+\usepackage{geometry}[lmargin=0.5in,rmargin=0.5in]
 \usepackage{amssymb,amsmath,amsthm,amsfonts,mathrsfs,color}
 \usepackage{mathtools,commath}
 \usepackage{epsfig}
@@ -10,6 +11,7 @@
 \usepackage{algorithmicext}
 \usepackage{ifthen}
 \usepackage{graphicx}
+\usepackage{grffile}
 \usepackage{pgfplots}
 \usepackage{longtable}
 \usepackage{url}
@@ -17,7 +19,9 @@
 \usepackage[utf8]{luainputenc}
 \usepackage[bibencoding=utf8,backend=biber]{biblatex}
 \addbibresource{cosc6342-hw2-michael-yantosca.bib}
-
+\usepackage{chngcntr}
+\counterwithin{figure}{subsection}
+\usepackage{minted}
 \usepackage{fancyhdr}
 \pagestyle{fancy}
 \lhead{{\footnotesize{COSC6342 HW 2}}}
@@ -227,6 +231,7 @@
     \item{learning rate, $\lambda \in \{0.1, 0.01, 0.001\}$}
     \item{batch size, $b \in \{1, 40, 80, 160\}$}
     \item{momentum, $\alpha \in \{0.0, 0.1, 0.5, 0.9, 1.0\}$}
+    \item{activation unit, $u \in \{\text{sigmoid}, \text{tanh}, \text{ReLU}\}$}
     \end{itemize}
     All experiments ran training with SGD for 256 epochs, reserving every fourth sample for validation.
     Thus, the training set size was 160, the validation set size 54, and the test set size 1,896.
@@ -235,7 +240,134 @@
     Each set of parameters was tested 3 times to provide some coverage of random variation without
     making the experimentation run too long since PINNIPED has not been optimized for performance.
   }
-  \subsection{Results}{
+  \subsection{Classification Error Over Time}{
+    The classification errors show the typical learning curve with a plateau as the model stabilizes
+    and reaches its minimum error state. Frequently, equilibrium is achieved well before the defined
+    256 epoch limit.
+    \paragraph{Variation in $b$}{
+      Fig~\ref{fig:error-by-b} illustrates the variation in accuracy resulting from a change in batch size.
+      The largest batch size exhibits the greatest distance between training and validation error
+      at equilibrium, as well as the slowest convergence. Decreasing batch size appears to accelerate
+      convergence as well as improve accuracy across all sets. This alacrity toward convergence
+      correlates to earlier overfitting as one observes the validation error start to increase in the
+      $b = 1$ case while the error in the $b = 160$ case is still descending for both training and
+      validation after 256 epochs.
+    }
+    \begin{figure}[h]
+      \includegraphics[width=0.5\textwidth]{./img/64-0.001-1-0-sigmoid-1/error-255.png}
+      \includegraphics[width=0.5\textwidth]{./img/64-0.001-40-0-sigmoid-1/error-255.png}
+      \includegraphics[width=0.5\textwidth]{./img/64-0.001-80-0-sigmoid-1/error-255.png}
+      \includegraphics[width=0.5\textwidth]{./img/64-0.001-160-0-sigmoid-1/error-255.png}
+      \caption{Classification Errors Varied by Batch Size}
+      \label{fig:error-by-b}
+    \end{figure}
+    \paragraph{Variation in $N_H$}{
+      Fig~\ref{fig:error-by-nh} illustrates the variation in accuracy resulting from a change in
+      node count for the hidden layer. The lower, less expressive node counts appear to
+      introduce significant jitter in the evolution of the error metric. This makes intuitive
+      sense since a weight change in a single node has a greater potential impact on the hidden
+      layer output when the nodes are few. There are fewer counterweights to counteract the mistakes
+      of one hidden node. The lower count cases also reach the overfitting point much more quickly.
+      There appears to be a linear relationship between the inflection point and the number of
+      nodes. Assume a function $f$ that maps node count to the inflection epoch, i.e.,
+      $f(N_H) = t_{overfit}$.
+      In these examples, $f(1) \approx 75, f(4) \approx 100, f(16) \approx 175, f(64) > 256$.
+    }
+    \begin{figure}[h]
+      \includegraphics[width=0.5\textwidth]{./img/1-0.001-160-0-sigmoid-1/error-255.png}
+      \includegraphics[width=0.5\textwidth]{./img/4-0.001-160-0-sigmoid-1/error-255.png}
+      \includegraphics[width=0.5\textwidth]{./img/16-0.001-160-0-sigmoid-1/error-255.png}
+      \includegraphics[width=0.5\textwidth]{./img/64-0.001-160-0-sigmoid-1/error-255.png}
+      \caption{Classification Errors Varied by Hidden Layer Node Count}
+      \label{fig:error-by-nh}
+    \end{figure}
+    %% \paragraph{Variation in $\alpha$}{
+  }
+  \subsection{Changes in Weight Over Time}{
+    To plot changes in layer weights over the training cycle, a heatmap was adopted to simultaneously
+    illustrate the changes for all layers in a single concise graphic. A consistent observation was
+    that the weight changes quickly rose in a crescendo in the first few epochs of training and then
+    quickly dropped off and stabilized. The classification error follows a similar enough pattern that
+    the error graph might appear proportional to a cross-section of the weight change heat map
+    if it were extruded into three-dimensional space. Plots for weight vector norm difference per epoch
+    were created, but they are omitted here as the information is redundant with the angle delta plots.
+    \paragraph{Variation in $b$}{
+      Fig~\ref{fig:dw-by-b} illustrates the weight change history for variations in batch size.
+      As batch size increases, the weight changes become more gradual and less pronounced. This follows
+      intuitively since smaller batch sizes incur opportunities for more immediate backpropagation
+      multiple times within an epoch. As such, the model changes to fit each sample, becoming quicker
+      to overfit as the batch size decreases.
+    }
+    \begin{figure}[h]
+      \includegraphics[width=0.5\textwidth]{./img/64-0.001-1-0-sigmoid-1/weight-angle-changes-L0-255.png}
+      \includegraphics[width=0.5\textwidth]{./img/64-0.001-40-0-sigmoid-1/weight-angle-changes-L0-255.png}
+      \includegraphics[width=0.5\textwidth]{./img/64-0.001-80-0-sigmoid-1/weight-angle-changes-L0-255.png}
+      \includegraphics[width=0.5\textwidth]{./img/64-0.001-160-0-sigmoid-1/weight-angle-changes-L0-255.png}
+      \caption{Activations Varied by Batch Size}
+      \label{fig:dw-by-b}
+    \end{figure}
+    \paragraph{Variation in $N_H$}{
+      Fig~\ref{fig:dw-by-nh} illustrates the weight change history for variations in hidden node count.
+      With a single hidden node, the weight changes appear relatively small for the most part, although
+      some of that may be an issue with artifacting in matplotlib that is masking the ostensible maxima.
+      With four hidden nodes, it appears that nodes 0 and 2 incur the most sustained change over time,
+      while nodes 1 and 3 remain relatively quiescent. As node count increases, the majority of the time
+      is spent making minor adjustments with a burst of change in the early epochs. The burst is more
+      pronounced in the $N_H = 64$ both in relative and absolute magnitude.
+    }
+    \begin{figure}[h]
+      \includegraphics[width=0.5\textwidth]{./img/1-0.001-160-0-sigmoid-1/weight-angle-changes-L0-255.png}
+      \includegraphics[width=0.5\textwidth]{./img/4-0.001-160-0-sigmoid-1/weight-angle-changes-L0-255.png}
+      \includegraphics[width=0.5\textwidth]{./img/16-0.001-160-0-sigmoid-1/weight-angle-changes-L0-255.png}
+      \includegraphics[width=0.5\textwidth]{./img/64-0.001-160-0-sigmoid-1/weight-angle-changes-L0-255.png}
+      \caption{Weight Vector Changes Varied by Hidden Layer Node Count}
+      \label{fig:dw-by-nh}
+    \end{figure}
+  }
+
+  \subsection{Non-Linear Activations}{
+    \paragraph{Variation in $b$}{
+      Fig~\ref{fig:a-by-b} illustrates the output of the activation unit for each hidden input node
+      over variations in batch size. When batch size is small, the distribution of activations
+      appears to follow a normal distribution with mean at 0.5. As batch size increases, this
+      gradually morphs into a bimodal distribution with peaks at 0 and 1. The distribution
+      appear to be consistent across multiple nodes. The larger peak occurs around zero (0),
+      which makes sense since the model is likely concentrating its ``voting power'' in the
+      learned class outputs and zeroing out most others.
+    }
+    \begin{figure}[h]
+      \includegraphics[width=0.5\textwidth]{./img/64-0.001-1-0-sigmoid-1/activations-A0-255.png}
+      \includegraphics[width=0.5\textwidth]{./img/64-0.001-40-0-sigmoid-1/activations-A0-255.png}
+      \includegraphics[width=0.5\textwidth]{./img/64-0.001-80-0-sigmoid-1/activations-A0-255.png}
+      \includegraphics[width=0.5\textwidth]{./img/64-0.001-160-0-sigmoid-1/activations-A0-255.png}
+      \caption{Activations Varied by Batch Size}
+      \label{fig:a-by-b}
+    \end{figure}
+    \paragraph{Variation in $N_H$}{
+      Fig~\ref{fig:a-by-nh} illustrates the output of the activation unit for each hidden input node
+      over variations in hidden node count. The extrema in node count exhibit the bimodal distribution
+      seen previously in the large batch size while the middle counts are closer to the normal
+      distribution. The case where $N_H = 4$ appears to be more disorganized in its distribution
+      than where $N_H = 16$, though this appears to correlate to the weight vector changes observed.
+
+      This suggests that a node subject to more emphatic swings in its weights over longer periods of
+      time will reflect this in the form of a normal random activation pattern, while nodes which remain
+      relatively cool will settle into a stable bimodal pattern. This may also correlate with
+      the overfitting inflection point, which does not appear to be reached in the case where $N_H = 64$.
+
+      It should be noted that the $N_H = 1$, while bimodal, has a more gradual slope than $N_H = 64$.
+      This supports the prior supposition that extended jitter diffuses the activations over a wider
+      area. The single node case may also be exhibiting some degeneracy by virtue of it having to compress
+      a 39-class decision into a single scalar that is then weighted accordingly by the output layer.
+    }
+    \begin{figure}[h]
+      \includegraphics[width=0.5\textwidth]{./img/1-0.001-160-0-sigmoid-1/activations-A0-255.png}
+      \includegraphics[width=0.5\textwidth]{./img/4-0.001-160-0-sigmoid-1/activations-A0-255.png}
+      \includegraphics[width=0.5\textwidth]{./img/16-0.001-160-0-sigmoid-1/activations-A0-255.png}
+      \includegraphics[width=0.5\textwidth]{./img/64-0.001-160-0-sigmoid-1/activations-A0-255.png}
+      \caption{Activations Varied by Hidden Layer Node Count}
+      \label{fig:a-by-nh}
+    \end{figure}
   }
 }
 \section{Conclusions}{
