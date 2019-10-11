@@ -354,7 +354,9 @@ def test_nn(model, X, Y):
 def capture_hidden_outputs_hook(module, features_in, features_out, **kwargs):
     for y in features_out:
         d = 0
-        for f in y:
+        # ReLU may provide values greater than 1. This clamps them for the purposes of graphing.
+        y_clamped = y.clone().detach().requires_grad_(False).clamp(min=0.0, max=1.0)
+        for f in y_clamped:
             f_bin = math.ceil(args.activation_bins * f) - 1
             activations[kwargs['name']][d][f_bin] += 1
             d += 1
