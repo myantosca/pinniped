@@ -73,9 +73,22 @@
 \author{Michael Yantosca}
 \begin{document}
 \maketitle
-\tableofcontents
-\abstract{}{
+\abstract{
+  Training neural networks for machine learning tasks is expensive in time and energy.
+  One of the current trends for combatting this is to minimize the amount of intermediate
+  state required, especially if said intermediate state bears the imprint of expert systems
+  from previous decades of research. The supposition is that with enough data all concepts
+  are shallow. To investigate the feasibility of this approach, the work introduces
+  PINNIPED, a Parameterized Interactive Neural Network Plotting Iteratively Experimental
+  Decisions, which can minutely specify the parameters of a neural network and produce
+  plots and intermediate model states over the course of training. An attempt is made to
+  train a feedforward neural network using only backpropagation and stochastic gradient
+  descent with amplitude data for input and English phoneme labels as classifier output.
+  While the parameters and techniques employed were by no means exhaustive, the results
+  hint that for some tasks a certain amount of expertise is in fact required, usually
+  with respect to the preprocessing phase of ingesting the data.
 }
+\tableofcontents
 \section{Introduction}{
   The past decade in natural language processing (NLP) research has seen a trend of
   eliminating complex intermediate stages in models in favor of deep-learning approaches
